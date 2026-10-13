@@ -40,6 +40,8 @@ jobs:
           # The Protobuf code generator, on types covering all it supports.
           - dir: cfprotobuf/internal/testtypes
             target: FuzzUnmarshal
+          - dir: cfprotobuf/internal/testtypes
+            target: FuzzUnmarshalPacked
           # Generated Protobuf code against the vtprotobuf code it replaced, a
           # module of its own.
           - dir: internal/cfprotobufcmp

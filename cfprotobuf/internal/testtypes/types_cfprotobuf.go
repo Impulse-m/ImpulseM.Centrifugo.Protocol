@@ -1299,6 +1299,304 @@ func (m *NoUnknown) unmarshalCF(b []byte, depth int) error {
 }
 
 // SizeCF returns the size of the Protobuf encoding of m.
+func (m *Packed) SizeCF() (n int) {
+	if m == nil {
+		return 0
+	}
+	if len(m.IDs) > 0 {
+		packed := 0
+		for _, e := range m.IDs {
+			packed += cfprotobuf.SizeOfInt(e)
+		}
+		n += 1 + cfprotobuf.SizeOfLen(packed) + packed
+	}
+	if len(m.Values) > 0 {
+		packed := 0
+		for _, e := range m.Values {
+			packed += cfprotobuf.SizeOfInt(e)
+		}
+		n += 2 + cfprotobuf.SizeOfLen(packed) + packed
+	}
+	n += len(m.unknownFields)
+	return n
+}
+
+// MarshalCF returns the Protobuf encoding of m.
+func (m *Packed) MarshalCF() ([]byte, error) {
+	if m == nil {
+		return nil, nil
+	}
+	b := make([]byte, m.SizeCF())
+	n, err := m.MarshalToSizedBufferCF(b)
+	if err != nil {
+		return nil, err
+	}
+	return b[:n], nil
+}
+
+// MarshalToCF writes the Protobuf encoding of m to the beginning of b, which must
+// have room for SizeCF bytes, and returns the number of bytes written.
+func (m *Packed) MarshalToCF(b []byte) (int, error) {
+	return m.MarshalToSizedBufferCF(b[:m.SizeCF()])
+}
+
+// MarshalToSizedBufferCF writes the Protobuf encoding of m to the end of b, which
+// must have room for SizeCF bytes, and returns the number of bytes written.
+func (m *Packed) MarshalToSizedBufferCF(b []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	i := len(b)
+	if m.unknownFields != nil {
+		i -= len(m.unknownFields)
+		copy(b[i:], m.unknownFields)
+	}
+	if len(m.Values) > 0 {
+		end := i
+		for n := len(m.Values) - 1; n >= 0; n-- {
+			i = cfprotobuf.PutInt(b, i, m.Values[n])
+		}
+		i = cfprotobuf.PutLen(b, i, end-i)
+		i--
+		b[i] = 0x3e
+		i--
+		b[i] = 0xc2
+	}
+	if len(m.IDs) > 0 {
+		end := i
+		for n := len(m.IDs) - 1; n >= 0; n-- {
+			i = cfprotobuf.PutInt(b, i, m.IDs[n])
+		}
+		i = cfprotobuf.PutLen(b, i, end-i)
+		i--
+		b[i] = 0xa
+	}
+	return len(b) - i, nil
+}
+
+// UnmarshalCF decodes the Protobuf encoding of a message from b into m. Fields
+// which are not in b are left as they are. Everything decoded is copied out of
+// b, which may be reused afterwards.
+func (m *Packed) UnmarshalCF(b []byte) error {
+	return m.unmarshalCF(b, 0)
+}
+
+func (m *Packed) unmarshalCF(b []byte, depth int) error {
+	for i := 0; i < len(b); {
+		tag, next := uint64(b[i]), i+1
+		if tag >= 0x80 {
+			if tag, next = cfprotobuf.Varint(b, i); next < 0 {
+				return cfprotobuf.Error(next)
+			}
+		}
+		i = next
+		switch tag >> 3 {
+		case 1: // IDs
+			if tag&7 == 2 {
+				from := i + 1
+				var to int
+				if i < len(b) && b[i] < 0x80 && int(b[i]) <= len(b)-from {
+					to = from + int(b[i])
+				} else if from, to = cfprotobuf.Length(b, i); from < 0 {
+					return cfprotobuf.Error(from)
+				}
+				entry := b[from:to]
+				var nx int
+				for j := 0; j < len(entry); {
+					var e uint64
+					var v uint64
+					if j < len(entry) && entry[j] < 0x80 {
+						v, nx = uint64(entry[j]), j+1
+					} else if v, nx = cfprotobuf.Varint(entry, j); nx < 0 {
+						return cfprotobuf.Error(nx)
+					}
+					e = cfprotobuf.Int[uint64](v)
+					j = nx
+					m.IDs = append(m.IDs, e)
+				}
+				i = to
+				continue
+			}
+			if tag&7 == 0 {
+				var e uint64
+				var v uint64
+				if i < len(b) && b[i] < 0x80 {
+					v, next = uint64(b[i]), i+1
+				} else if v, next = cfprotobuf.Varint(b, i); next < 0 {
+					return cfprotobuf.Error(next)
+				}
+				e = cfprotobuf.Int[uint64](v)
+				i = next
+				m.IDs = append(m.IDs, e)
+				continue
+			}
+		case 1000: // Values
+			if tag&7 == 2 {
+				from := i + 1
+				var to int
+				if i < len(b) && b[i] < 0x80 && int(b[i]) <= len(b)-from {
+					to = from + int(b[i])
+				} else if from, to = cfprotobuf.Length(b, i); from < 0 {
+					return cfprotobuf.Error(from)
+				}
+				entry := b[from:to]
+				var nx int
+				for j := 0; j < len(entry); {
+					var e uint64
+					var v uint64
+					if j < len(entry) && entry[j] < 0x80 {
+						v, nx = uint64(entry[j]), j+1
+					} else if v, nx = cfprotobuf.Varint(entry, j); nx < 0 {
+						return cfprotobuf.Error(nx)
+					}
+					e = cfprotobuf.Int[uint64](v)
+					j = nx
+					m.Values = append(m.Values, e)
+				}
+				i = to
+				continue
+			}
+			if tag&7 == 0 {
+				var e uint64
+				var v uint64
+				if i < len(b) && b[i] < 0x80 {
+					v, next = uint64(b[i]), i+1
+				} else if v, next = cfprotobuf.Varint(b, i); next < 0 {
+					return cfprotobuf.Error(next)
+				}
+				e = cfprotobuf.Int[uint64](v)
+				i = next
+				m.Values = append(m.Values, e)
+				continue
+			}
+		}
+		next = cfprotobuf.Skip(b, i, tag)
+		if next < 0 {
+			return cfprotobuf.Error(next)
+		}
+		m.unknownFields = cfprotobuf.AppendUnknown(m.unknownFields, tag, b[i:next])
+		i = next
+	}
+	return nil
+}
+
+// SizeCF returns the size of the Protobuf encoding of m.
+func (m *PackedOne) SizeCF() (n int) {
+	if m == nil {
+		return 0
+	}
+	if len(m.IDs) > 0 {
+		packed := 0
+		for _, e := range m.IDs {
+			packed += cfprotobuf.SizeOfInt(e)
+		}
+		n += 1 + cfprotobuf.SizeOfLen(packed) + packed
+	}
+	return n
+}
+
+// MarshalCF returns the Protobuf encoding of m.
+func (m *PackedOne) MarshalCF() ([]byte, error) {
+	if m == nil {
+		return nil, nil
+	}
+	b := make([]byte, m.SizeCF())
+	n, err := m.MarshalToSizedBufferCF(b)
+	if err != nil {
+		return nil, err
+	}
+	return b[:n], nil
+}
+
+// MarshalToCF writes the Protobuf encoding of m to the beginning of b, which must
+// have room for SizeCF bytes, and returns the number of bytes written.
+func (m *PackedOne) MarshalToCF(b []byte) (int, error) {
+	return m.MarshalToSizedBufferCF(b[:m.SizeCF()])
+}
+
+// MarshalToSizedBufferCF writes the Protobuf encoding of m to the end of b, which
+// must have room for SizeCF bytes, and returns the number of bytes written.
+func (m *PackedOne) MarshalToSizedBufferCF(b []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	i := len(b)
+	if len(m.IDs) > 0 {
+		end := i
+		for n := len(m.IDs) - 1; n >= 0; n-- {
+			i = cfprotobuf.PutInt(b, i, m.IDs[n])
+		}
+		i = cfprotobuf.PutLen(b, i, end-i)
+		i--
+		b[i] = 0x12
+	}
+	return len(b) - i, nil
+}
+
+// UnmarshalCF decodes the Protobuf encoding of a message from b into m. Fields
+// which are not in b are left as they are. Everything decoded is copied out of
+// b, which may be reused afterwards.
+func (m *PackedOne) UnmarshalCF(b []byte) error {
+	return m.unmarshalCF(b, 0)
+}
+
+func (m *PackedOne) unmarshalCF(b []byte, depth int) error {
+	for i := 0; i < len(b); {
+		tag, next := uint64(b[i]), i+1
+		if tag >= 0x80 {
+			if tag, next = cfprotobuf.Varint(b, i); next < 0 {
+				return cfprotobuf.Error(next)
+			}
+		}
+		i = next
+		if tag == 18 { // IDs
+			from := i + 1
+			var to int
+			if i < len(b) && b[i] < 0x80 && int(b[i]) <= len(b)-from {
+				to = from + int(b[i])
+			} else if from, to = cfprotobuf.Length(b, i); from < 0 {
+				return cfprotobuf.Error(from)
+			}
+			entry := b[from:to]
+			var nx int
+			for j := 0; j < len(entry); {
+				var e uint64
+				var v uint64
+				if j < len(entry) && entry[j] < 0x80 {
+					v, nx = uint64(entry[j]), j+1
+				} else if v, nx = cfprotobuf.Varint(entry, j); nx < 0 {
+					return cfprotobuf.Error(nx)
+				}
+				e = cfprotobuf.Int[uint64](v)
+				j = nx
+				m.IDs = append(m.IDs, e)
+			}
+			i = to
+			continue
+		}
+		if tag == 16 {
+			var e uint64
+			var v uint64
+			if i < len(b) && b[i] < 0x80 {
+				v, next = uint64(b[i]), i+1
+			} else if v, next = cfprotobuf.Varint(b, i); next < 0 {
+				return cfprotobuf.Error(next)
+			}
+			e = cfprotobuf.Int[uint64](v)
+			i = next
+			m.IDs = append(m.IDs, e)
+			continue
+		}
+		next = cfprotobuf.Skip(b, i, tag)
+		if next < 0 {
+			return cfprotobuf.Error(next)
+		}
+		i = next
+	}
+	return nil
+}
+
+// SizeCF returns the size of the Protobuf encoding of m.
 func (m *Ping) SizeCF() (n int) {
 	if m == nil {
 		return 0

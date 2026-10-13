@@ -79,10 +79,11 @@ The subset of proto3 which the Centrifugal schemas use:
 - `sint64`, `float`, `double`;
 - nested messages, by pointer;
 - repeated messages and repeated strings;
+- repeated `uint64`, packed as proto3 writes them (the unpacked form is decoded too);
 - maps with string keys and values of any of the above.
 
 Anything else is an error at generation time which names the field: fields
-which are not proto3, `oneof`, enums (as map values too), repeated numbers (packed or not), `sint32`, `fixed32`/`fixed64` and
+which are not proto3, `oneof`, enums (as map values too), repeated numbers other than `uint64` (packed or not), `sint32`, `fixed32`/`fixed64` and
 `sfixed` integers, maps with other keys, proto2 `required` fields. A field
 silently left out would be data lost on the wire, so there is no partial
 support.

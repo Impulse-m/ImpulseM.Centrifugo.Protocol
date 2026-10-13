@@ -29,6 +29,9 @@ func TestGenerate_Unsupported(t *testing.T) {
 		{"enum", "E int32 `protobuf:\"varint,1,opt,name=e,proto3,enum=pkg.E\"`", `option "enum=pkg.E" is not supported`},
 		{"packed", "N []int32 `protobuf:\"varint,1,rep,packed,name=n,proto3\"`", `option "packed" is not supported`},
 		{"repeated scalar", "N []int32 `protobuf:\"varint,1,rep,name=n,proto3\"`", "repeated fields of type int32 are not supported"},
+		{"packed repeated int64", "N []int64 `protobuf:\"varint,1,rep,packed,name=n,proto3\"`", `option "packed" is not supported`},
+		{"packed singular uint64", "N uint64 `protobuf:\"varint,1,opt,packed,name=n,proto3\"`", `option "packed" is not supported`},
+		{"unpacked repeated uint64", "N []uint64 `protobuf:\"varint,1,rep,name=n,proto3\"`", "repeated uint64 fields must be packed"},
 		{"required", "N int32 `protobuf:\"varint,1,req,name=n,proto3\"`", `label "req" is not supported`},
 		{"proto2", "N *int32 `protobuf:\"varint,1,opt,name=n\"`", "only proto3 fields are supported"},
 		{"map with enum values", "M map[string]int32 `protobuf:\"bytes,1,rep,name=m,proto3\" protobuf_key:\"bytes,1,opt,name=key\" protobuf_val:\"varint,2,opt,name=value,enum=pkg.E\"`", "enum map values are not supported"},
@@ -155,5 +158,31 @@ type Leaf struct {
 	_, leaf, found := strings.Cut(out, "func (m *Leaf) unmarshalCF")
 	if !found || strings.Contains(leaf, "ErrTooDeep") {
 		t.Fatal("depth check in a type which is not recursive")
+	}
+}
+
+// A repeated uint64 is written packed and read both packed and unpacked.
+func TestGenerate_PackedUint64(t *testing.T) {
+	out, err := generate(t, Config{}, `package p
+
+type T struct {
+	Ids []uint64 `+"`protobuf:\"varint,1000,rep,packed,name=ids,proto3\"`"+`
+	N   uint64   `+"`protobuf:\"varint,1,opt,name=n,proto3\"`"+`
+}
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"packed += cfprotobuf.SizeOfInt(e)",
+		"i = cfprotobuf.PutInt(b, i, m.Ids[n])",
+		"case 1000: // Ids",
+		"if tag&7 == 2 {",
+		"if tag&7 == 0 {",
+		"m.Ids = append(m.Ids, e)",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("no %q in the output", want)
+		}
 	}
 }
