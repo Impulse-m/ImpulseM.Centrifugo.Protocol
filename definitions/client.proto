@@ -18,6 +18,8 @@
 // matter for JSON). Never renumber, rename or change type of an existing field.
 // Removed fields must be added to reserved.
 //
+// Fork fields use numbers 1000-1999.
+//
 // oneof is intentionally not used anywhere in this file for JSON
 // interoperability: a message which semantically carries one of several
 // payloads has them as separate optional fields, exactly one of which is set.
@@ -50,8 +52,6 @@ option go_package = "github.com/centrifugal/protocol";
 //
 // Note that many protocol violations result in a Disconnect instead of an
 // Error reply.
-//
-// Fork fields use numbers 1000-1999.
 message Error {
   // Error code.
   uint32 code = 1;
@@ -134,8 +134,6 @@ message Command {
 // An empty Reply (all fields unset, i.e. {} in JSON) is a server ping. When
 // ConnectResult.pong is set the client must respond to it with an empty
 // Command.
-//
-// Fork fields use numbers 1000-1999.
 message Reply {
   // Id of the Command this Reply responds to. It is zero for pushes.
   uint32 id = 1;
@@ -413,8 +411,6 @@ message Refresh {
 
 // ConnectRequest authenticates a connection. It must be the first command sent
 // by a client.
-//
-// Fork fields use numbers 1000-1999.
 message ConnectRequest {
   // Connection token (JWT in Centrifugo), optional if the server can
   // authenticate the connection in another way.
@@ -468,8 +464,6 @@ message ConnectRequest {
 }
 
 // ConnectResult is the result of a successful connect.
-//
-// Fork fields use numbers 1000-1999.
 message ConnectResult {
   // Unique client (connection) id assigned by the server.
   string client = 1;
@@ -526,8 +520,6 @@ message RefreshRequest {
 }
 
 // RefreshResult is the result of a connection refresh.
-//
-// Fork fields use numbers 1000-1999.
 message RefreshResult {
   // Not set by the current server.
   string client = 1;
@@ -814,8 +806,6 @@ message PingRequest {}
 message PingResult {}
 
 // RPCRequest is a remote procedure call handled by the application.
-//
-// Fork fields use numbers 1000-1999.
 message RPCRequest{
   // Call payload.
   bytes data = 1;
@@ -839,8 +829,6 @@ message RPCRequest{
 }
 
 // RPCResult is the result of an RPC call.
-//
-// Fork fields use numbers 1000-1999.
 message RPCResult {
   // Result payload.
   bytes data = 1 ;

@@ -18,6 +18,8 @@
 // matter for JSON). Never renumber, rename or change type of an existing field.
 // Removed fields must be added to reserved.
 //
+// Fork fields use numbers 1000-1999.
+//
 // oneof is intentionally not used anywhere in this file for JSON
 // interoperability: a message which semantically carries one of several
 // payloads has them as separate optional fields, exactly one of which is set.
@@ -67,8 +69,6 @@ const (
 //
 // Note that many protocol violations result in a Disconnect instead of an
 // Error reply.
-//
-// Fork fields use numbers 1000-1999.
 type Error struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Error code.
@@ -394,8 +394,6 @@ func (x *Command) GetSubRefresh() *SubRefreshRequest {
 // An empty Reply (all fields unset, i.e. {} in JSON) is a server ping. When
 // ConnectResult.pong is set the client must respond to it with an empty
 // Command.
-//
-// Fork fields use numbers 1000-1999.
 type Reply struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Id of the Command this Reply responds to. It is zero for pushes.
@@ -1594,8 +1592,6 @@ func (x *Refresh) GetTtl() uint32 {
 
 // ConnectRequest authenticates a connection. It must be the first command sent
 // by a client.
-//
-// Fork fields use numbers 1000-1999.
 type ConnectRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Connection token (JWT in Centrifugo), optional if the server can
@@ -1751,8 +1747,6 @@ func (x *ConnectRequest) GetInstance() string {
 }
 
 // ConnectResult is the result of a successful connect.
-//
-// Fork fields use numbers 1000-1999.
 type ConnectResult struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Unique client (connection) id assigned by the server.
@@ -1986,8 +1980,6 @@ func (x *RefreshRequest) GetToken() string {
 }
 
 // RefreshResult is the result of a connection refresh.
-//
-// Fork fields use numbers 1000-1999.
 type RefreshResult struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Not set by the current server.
@@ -3437,8 +3429,6 @@ func (*PingResult) Descriptor() ([]byte, []int) {
 }
 
 // RPCRequest is a remote procedure call handled by the application.
-//
-// Fork fields use numbers 1000-1999.
 type RPCRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Call payload.
@@ -3557,8 +3547,6 @@ func (x *RPCRequest) GetCancel() uint64 {
 }
 
 // RPCResult is the result of an RPC call.
-//
-// Fork fields use numbers 1000-1999.
 type RPCResult struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Result payload.
