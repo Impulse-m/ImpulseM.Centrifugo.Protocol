@@ -1,5 +1,7 @@
 package gen
 
+import "fmt"
+
 // Packed repeated uint64 fields. proto3 writes them as one length-delimited
 // field holding the varints of all values, and reads both that and the
 // unpacked form, one field per value. Nothing else of packed encoding is
@@ -9,6 +11,29 @@ package gen
 // packed: uint64 is the only numeric type supported for it.
 func isPackedValue(v value) bool {
 	return v.kind == kVarint && v.src == "uint64"
+}
+
+// packed reports whether a field is written packed, see packedField.
+func (f field) packed() bool {
+	return f.repeated && !f.isMap && isPackedValue(f.val)
+}
+
+// packedField checks the packed option of a field, which is only supported
+// on repeated uint64, and the types of repeated fields, which are messages,
+// strings and repeated uint64. proto3 writes repeated numbers packed, so a
+// repeated uint64 without the option is rejected too. Map fields with the
+// option are rejected by structInfo.
+func packedField(where string, fd field, packedOpt bool) error {
+	if packedOpt && (!fd.repeated || !isPackedValue(fd.val)) {
+		return fmt.Errorf("%s: protobuf tag option %q is not supported", where, "packed")
+	}
+	if fd.repeated && fd.val.kind != kMessage && fd.val.kind != kString && !isPackedValue(fd.val) {
+		return fmt.Errorf("%s: repeated fields of type %s are not supported", where, fd.val.src)
+	}
+	if fd.packed() && !packedOpt {
+		return fmt.Errorf("%s: repeated uint64 fields must be packed", where)
+	}
+	return nil
 }
 
 // sizePacked emits code adding the size of the packed field f to n.

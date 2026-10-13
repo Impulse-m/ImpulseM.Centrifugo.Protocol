@@ -71,8 +71,6 @@ type field struct {
 	goName   string
 	number   int
 	repeated bool
-	// packed is set for a repeated uint64 written packed, see packed.go.
-	packed bool
 	// isMap is set for map fields, val is then the type of map values and
 	// keySrc the Go type of the keys, which are strings.
 	isMap  bool
@@ -258,8 +256,6 @@ func (g *generator) structInfo(name string, st *ast.StructType) (structInfo, err
 				return si, fmt.Errorf("%s: protobuf tag option %q is not supported", where, opt)
 			}
 		}
-		// packed is only supported on repeated uint64, checked once the type is known.
-		packedOpt := slices.Contains(parts[3:], "packed")
 		// Zero values left out and strings checked to be UTF-8 are the rules
 		// of proto3, a proto2 field has other ones.
 		if !slices.Contains(parts[3:], "proto3") {
@@ -273,11 +269,8 @@ func (g *generator) structInfo(name string, st *ast.StructType) (structInfo, err
 		expr := f.Type
 		if m, isMap := expr.(*ast.MapType); isMap {
 			keyDesc, valDesc := tag.Get("protobuf_key"), tag.Get("protobuf_val")
-			if !fd.repeated || !strings.HasPrefix(keyDesc, "bytes,1,") || !strings.Contains(valDesc+",", ",2,") {
+			if !fd.repeated || slices.Contains(parts[3:], "packed") || !strings.HasPrefix(keyDesc, "bytes,1,") || !strings.Contains(valDesc+",", ",2,") {
 				return si, fmt.Errorf("%s: unsupported map tags", where)
-			}
-			if packedOpt {
-				return si, fmt.Errorf("%s: protobuf tag option %q is not supported", where, "packed")
 			}
 			if key, kerr := g.value(m.Key, "bytes"); kerr != nil || key.kind != kString {
 				return si, fmt.Errorf("%s: only maps with string keys are supported", where)
@@ -303,17 +296,8 @@ func (g *generator) structInfo(name string, st *ast.StructType) (structInfo, err
 		if fd.val, err = g.value(expr, parts[0]); err != nil {
 			return si, fmt.Errorf("%s: %w", where, err)
 		}
-		if packedOpt && (!fd.repeated || !isPackedValue(fd.val)) {
-			return si, fmt.Errorf("%s: protobuf tag option %q is not supported", where, "packed")
-		}
-		if fd.repeated && fd.val.kind != kMessage && fd.val.kind != kString && !isPackedValue(fd.val) {
-			return si, fmt.Errorf("%s: repeated fields of type %s are not supported", where, fd.val.src)
-		}
-		// proto3 writes repeated numbers packed, which is the only form
-		// supported for them.
-		fd.packed = fd.repeated && isPackedValue(fd.val)
-		if fd.packed && !packedOpt {
-			return si, fmt.Errorf("%s: repeated uint64 fields must be packed", where)
+		if err := packedField(where, fd, slices.Contains(parts[3:], "packed")); err != nil {
+			return si, err
 		}
 		si.fields = append(si.fields, fd)
 	}
@@ -504,7 +488,7 @@ func (g *generator) size(si *structInfo) {
 			g.p("n += %d + entry + cfprotobuf.SizeOfLen(entry)", tagSize)
 			g.p("}")
 			g.p("}")
-		case f.packed:
+		case f.packed():
 			g.sizePacked(f)
 		case f.repeated:
 			g.p("for _, e := range %s {", x)
@@ -602,7 +586,7 @@ func (g *generator) marshal(si *structInfo) {
 			g.putTag(tagOf(f.number, 2))
 			g.p("}")
 			g.p("}")
-		case f.packed:
+		case f.packed():
 			g.marshalPacked(f)
 		case f.repeated:
 			g.p("for n := len(%s) - 1; n >= 0; n-- {", x)
@@ -702,7 +686,7 @@ func (g *generator) unmarshal(si *structInfo) {
 		}
 		for _, f := range si.fields {
 			x := "m." + f.goName
-			if f.packed {
+			if f.packed() {
 				g.unmarshalPacked(f, single)
 				continue
 			}
