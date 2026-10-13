@@ -46,7 +46,8 @@ func refPackedOne(m *PackedOne) []byte {
 // Golden encodings, written out by hand from the protocol buffer encoding
 // rules: a tag, a length and the varints of the values. The official
 // google.golang.org/protobuf encoder produces the same, see
-// protobuf_official_test.go in the root of the module.
+// fork_fields_test.go in the root of the module, which checks the same bytes
+// for repeated uint64 fields of RPCRequest.
 var packedGolden = []struct {
 	name string
 	msg  *Packed
