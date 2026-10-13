@@ -6,31 +6,48 @@ import (
 	"errors"
 	"math"
 	"math/rand"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/centrifugal/protocol/cfprotobuf"
+	"github.com/centrifugal/protocol/cfprotobuf/gen"
 )
 
-// refVarints returns the varints of values one after another, which is what
-// the payload of a packed field holds.
-func refVarints(values []uint64) []byte {
-	var b []byte
-	for _, v := range values {
-		b = refVarint(b, v)
+// The generated file of packed_types.go must be what the generator produces
+// today.
+func TestPackedGeneratedCodeIsUpToDate(t *testing.T) {
+	want, err := gen.Generate(gen.Config{Files: []string{"packed_types.go"}})
+	if err != nil {
+		t.Fatal(err)
 	}
-	return b
+	got, err := os.ReadFile("packed_types_cfprotobuf.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatal("packed_types_cfprotobuf.go is out of date, run go generate")
+	}
 }
 
-// refPacked is the reference encoder of Packed, written the obvious way.
+// refPacked is the reference encoder of Packed, written the obvious way: the
+// values of a packed field are its varints one after another.
 func refPacked(m *Packed) []byte {
 	var b []byte
 	if len(m.IDs) > 0 {
-		b = refBytes(b, 1, refVarints(m.IDs))
+		var payload []byte
+		for _, v := range m.IDs {
+			payload = refVarint(payload, v)
+		}
+		b = refBytes(b, 1, payload)
 	}
 	if len(m.Values) > 0 {
-		b = refBytes(b, 1000, refVarints(m.Values))
+		var payload []byte
+		for _, v := range m.Values {
+			payload = refVarint(payload, v)
+		}
+		b = refBytes(b, 1000, payload)
 	}
 	return append(b, m.unknownFields...)
 }
@@ -38,7 +55,11 @@ func refPacked(m *Packed) []byte {
 func refPackedOne(m *PackedOne) []byte {
 	var b []byte
 	if len(m.IDs) > 0 {
-		b = refBytes(b, 2, refVarints(m.IDs))
+		var payload []byte
+		for _, v := range m.IDs {
+			payload = refVarint(payload, v)
+		}
+		b = refBytes(b, 2, payload)
 	}
 	return b
 }
