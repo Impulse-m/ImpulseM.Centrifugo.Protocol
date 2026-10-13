@@ -20,6 +20,18 @@ func (m *Error) SizeCF() (n int) {
 	if m.Temporary {
 		n += 1 + 1
 	}
+	if m.AppCode != 0 {
+		n += 2 + cfprotobuf.SizeOfInt(m.AppCode)
+	}
+	if m.AppType != "" {
+		n += 2 + len(m.AppType) + cfprotobuf.SizeOfLen(len(m.AppType))
+	}
+	if len(m.Metadata) > 0 {
+		for k, v := range m.Metadata {
+			entry := 1 + len(k) + cfprotobuf.SizeOfLen(len(k)) + 1 + len(v) + cfprotobuf.SizeOfLen(len(v))
+			n += 2 + entry + cfprotobuf.SizeOfLen(entry)
+		}
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -53,6 +65,42 @@ func (m *Error) MarshalToSizedBufferCF(b []byte) (int, error) {
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(b[i:], m.unknownFields)
+	}
+	if len(m.Metadata) > 0 {
+		for k, v := range m.Metadata {
+			end := i
+			i -= len(v)
+			copy(b[i:], v)
+			i = cfprotobuf.PutLen(b, i, len(v))
+			i--
+			b[i] = 0x12
+			i -= len(k)
+			copy(b[i:], k)
+			i = cfprotobuf.PutLen(b, i, len(k))
+			i--
+			b[i] = 0xa
+			i = cfprotobuf.PutLen(b, i, end-i)
+			i--
+			b[i] = 0x3e
+			i--
+			b[i] = 0xd2
+		}
+	}
+	if m.AppType != "" {
+		i -= len(m.AppType)
+		copy(b[i:], m.AppType)
+		i = cfprotobuf.PutLen(b, i, len(m.AppType))
+		i--
+		b[i] = 0x3e
+		i--
+		b[i] = 0xca
+	}
+	if m.AppCode != 0 {
+		i = cfprotobuf.PutInt(b, i, m.AppCode)
+		i--
+		b[i] = 0x3e
+		i--
+		b[i] = 0xc0
 	}
 	if m.Temporary {
 		i--
@@ -131,6 +179,100 @@ func (m *Error) unmarshalCF(b []byte, depth int) error {
 				}
 				m.Temporary = v != 0
 				i = next
+				continue
+			}
+		case 1000: // AppCode
+			if tag&7 == 0 {
+				var v uint64
+				if i < len(b) && b[i] < 0x80 {
+					v, next = uint64(b[i]), i+1
+				} else if v, next = cfprotobuf.Varint(b, i); next < 0 {
+					return cfprotobuf.Error(next)
+				}
+				m.AppCode = cfprotobuf.Int[int32](v)
+				i = next
+				continue
+			}
+		case 1001: // AppType
+			if tag&7 == 2 {
+				from := i + 1
+				var to int
+				if i < len(b) && b[i] < 0x80 && int(b[i]) <= len(b)-from {
+					to = from + int(b[i])
+				} else if from, to = cfprotobuf.Length(b, i); from < 0 {
+					return cfprotobuf.Error(from)
+				}
+				s := b[from:to]
+				if !cfprotobuf.ShortASCII(s) && !cfprotobuf.ValidString(s) {
+					return cfprotobuf.ErrInvalidUTF8
+				}
+				m.AppType = string(s)
+				i = to
+				continue
+			}
+		case 1002: // Metadata
+			if tag&7 == 2 {
+				from := i + 1
+				var to int
+				if i < len(b) && b[i] < 0x80 && int(b[i]) <= len(b)-from {
+					to = from + int(b[i])
+				} else if from, to = cfprotobuf.Length(b, i); from < 0 {
+					return cfprotobuf.Error(from)
+				}
+				if m.Metadata == nil {
+					m.Metadata = make(map[string]string)
+				}
+				entry := b[from:to]
+				var key string
+				var val string
+				for j := 0; j < len(entry); {
+					entryTag := uint64(entry[j])
+					next = j + 1
+					if entryTag >= 0x80 {
+						if entryTag, next = cfprotobuf.Varint(entry, j); next < 0 {
+							return cfprotobuf.Error(next)
+						}
+					}
+					j = next
+					switch entryTag {
+					case 10:
+						fromKey := j + 1
+						var toKey int
+						if j < len(entry) && entry[j] < 0x80 && int(entry[j]) <= len(entry)-fromKey {
+							toKey = fromKey + int(entry[j])
+						} else if fromKey, toKey = cfprotobuf.Length(entry, j); fromKey < 0 {
+							return cfprotobuf.Error(fromKey)
+						}
+						sKey := entry[fromKey:toKey]
+						if !cfprotobuf.ShortASCII(sKey) && !cfprotobuf.ValidString(sKey) {
+							return cfprotobuf.ErrInvalidUTF8
+						}
+						key = string(sKey)
+						j = toKey
+					case 18:
+						fromVal := j + 1
+						var toVal int
+						if j < len(entry) && entry[j] < 0x80 && int(entry[j]) <= len(entry)-fromVal {
+							toVal = fromVal + int(entry[j])
+						} else if fromVal, toVal = cfprotobuf.Length(entry, j); fromVal < 0 {
+							return cfprotobuf.Error(fromVal)
+						}
+						sVal := entry[fromVal:toVal]
+						if !cfprotobuf.ShortASCII(sVal) && !cfprotobuf.ValidString(sVal) {
+							return cfprotobuf.ErrInvalidUTF8
+						}
+						val = string(sVal)
+						j = toVal
+					default:
+						next = cfprotobuf.Skip(entry, j, entryTag)
+						if next < 0 {
+							return cfprotobuf.Error(next)
+						}
+						j = next
+					}
+				}
+				m.Metadata[key] = val
+				i = to
 				continue
 			}
 		}
@@ -824,6 +966,9 @@ func (m *Reply) SizeCF() (n int) {
 	if m.SubRefresh != nil {
 		n += 1 + cfprotobuf.SizeOfMessage(m.SubRefresh.SizeCF())
 	}
+	if m.Time != 0 {
+		n += 2 + cfprotobuf.SizeOfInt(m.Time)
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -857,6 +1002,13 @@ func (m *Reply) MarshalToSizedBufferCF(b []byte) (int, error) {
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(b[i:], m.unknownFields)
+	}
+	if m.Time != 0 {
+		i = cfprotobuf.PutInt(b, i, m.Time)
+		i--
+		b[i] = 0x3e
+		i--
+		b[i] = 0xc0
 	}
 	if m.SubRefresh != nil {
 		{
@@ -1283,6 +1435,18 @@ func (m *Reply) unmarshalCF(b []byte, depth int) error {
 					return err
 				}
 				i = to
+				continue
+			}
+		case 1000: // Time
+			if tag&7 == 0 {
+				var v uint64
+				if i < len(b) && b[i] < 0x80 {
+					v, next = uint64(b[i]), i+1
+				} else if v, next = cfprotobuf.Varint(b, i); next < 0 {
+					return cfprotobuf.Error(next)
+				}
+				m.Time = cfprotobuf.Int[int64](v)
+				i = next
 				continue
 			}
 		}
@@ -3752,6 +3916,9 @@ func (m *ConnectRequest) SizeCF() (n int) {
 	if m.Profile != "" {
 		n += 1 + len(m.Profile) + cfprotobuf.SizeOfLen(len(m.Profile))
 	}
+	if m.Instance != "" {
+		n += 2 + len(m.Instance) + cfprotobuf.SizeOfLen(len(m.Instance))
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -3785,6 +3952,15 @@ func (m *ConnectRequest) MarshalToSizedBufferCF(b []byte) (int, error) {
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(b[i:], m.unknownFields)
+	}
+	if m.Instance != "" {
+		i -= len(m.Instance)
+		copy(b[i:], m.Instance)
+		i = cfprotobuf.PutLen(b, i, len(m.Instance))
+		i--
+		b[i] = 0x3e
+		i--
+		b[i] = 0xc2
 	}
 	if m.Profile != "" {
 		i -= len(m.Profile)
@@ -4135,6 +4311,23 @@ func (m *ConnectRequest) unmarshalCF(b []byte, depth int) error {
 				i = to
 				continue
 			}
+		case 1000: // Instance
+			if tag&7 == 2 {
+				from := i + 1
+				var to int
+				if i < len(b) && b[i] < 0x80 && int(b[i]) <= len(b)-from {
+					to = from + int(b[i])
+				} else if from, to = cfprotobuf.Length(b, i); from < 0 {
+					return cfprotobuf.Error(from)
+				}
+				s := b[from:to]
+				if !cfprotobuf.ShortASCII(s) && !cfprotobuf.ValidString(s) {
+					return cfprotobuf.ErrInvalidUTF8
+				}
+				m.Instance = string(s)
+				i = to
+				continue
+			}
 		}
 		next = cfprotobuf.Skip(b, i, tag)
 		if next < 0 {
@@ -4192,6 +4385,12 @@ func (m *ConnectResult) SizeCF() (n int) {
 	if m.Dict != nil {
 		n += 1 + cfprotobuf.SizeOfMessage(m.Dict.SizeCF())
 	}
+	if m.User != "" {
+		n += 2 + len(m.User) + cfprotobuf.SizeOfLen(len(m.User))
+	}
+	if m.AuthClass != "" {
+		n += 2 + len(m.AuthClass) + cfprotobuf.SizeOfLen(len(m.AuthClass))
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -4225,6 +4424,24 @@ func (m *ConnectResult) MarshalToSizedBufferCF(b []byte) (int, error) {
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(b[i:], m.unknownFields)
+	}
+	if m.AuthClass != "" {
+		i -= len(m.AuthClass)
+		copy(b[i:], m.AuthClass)
+		i = cfprotobuf.PutLen(b, i, len(m.AuthClass))
+		i--
+		b[i] = 0x3e
+		i--
+		b[i] = 0xca
+	}
+	if m.User != "" {
+		i -= len(m.User)
+		copy(b[i:], m.User)
+		i = cfprotobuf.PutLen(b, i, len(m.User))
+		i--
+		b[i] = 0x3e
+		i--
+		b[i] = 0xc2
 	}
 	if m.Dict != nil {
 		{
@@ -4585,6 +4802,40 @@ func (m *ConnectResult) unmarshalCF(b []byte, depth int) error {
 				i = to
 				continue
 			}
+		case 1000: // User
+			if tag&7 == 2 {
+				from := i + 1
+				var to int
+				if i < len(b) && b[i] < 0x80 && int(b[i]) <= len(b)-from {
+					to = from + int(b[i])
+				} else if from, to = cfprotobuf.Length(b, i); from < 0 {
+					return cfprotobuf.Error(from)
+				}
+				s := b[from:to]
+				if !cfprotobuf.ShortASCII(s) && !cfprotobuf.ValidString(s) {
+					return cfprotobuf.ErrInvalidUTF8
+				}
+				m.User = string(s)
+				i = to
+				continue
+			}
+		case 1001: // AuthClass
+			if tag&7 == 2 {
+				from := i + 1
+				var to int
+				if i < len(b) && b[i] < 0x80 && int(b[i]) <= len(b)-from {
+					to = from + int(b[i])
+				} else if from, to = cfprotobuf.Length(b, i); from < 0 {
+					return cfprotobuf.Error(from)
+				}
+				s := b[from:to]
+				if !cfprotobuf.ShortASCII(s) && !cfprotobuf.ValidString(s) {
+					return cfprotobuf.ErrInvalidUTF8
+				}
+				m.AuthClass = string(s)
+				i = to
+				continue
+			}
 		}
 		next = cfprotobuf.Skip(b, i, tag)
 		if next < 0 {
@@ -4705,6 +4956,12 @@ func (m *RefreshResult) SizeCF() (n int) {
 	if m.Ttl != 0 {
 		n += 1 + cfprotobuf.SizeOfInt(m.Ttl)
 	}
+	if m.User != "" {
+		n += 2 + len(m.User) + cfprotobuf.SizeOfLen(len(m.User))
+	}
+	if m.AuthClass != "" {
+		n += 2 + len(m.AuthClass) + cfprotobuf.SizeOfLen(len(m.AuthClass))
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -4738,6 +4995,24 @@ func (m *RefreshResult) MarshalToSizedBufferCF(b []byte) (int, error) {
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(b[i:], m.unknownFields)
+	}
+	if m.AuthClass != "" {
+		i -= len(m.AuthClass)
+		copy(b[i:], m.AuthClass)
+		i = cfprotobuf.PutLen(b, i, len(m.AuthClass))
+		i--
+		b[i] = 0x3e
+		i--
+		b[i] = 0xca
+	}
+	if m.User != "" {
+		i -= len(m.User)
+		copy(b[i:], m.User)
+		i = cfprotobuf.PutLen(b, i, len(m.User))
+		i--
+		b[i] = 0x3e
+		i--
+		b[i] = 0xc2
 	}
 	if m.Ttl != 0 {
 		i = cfprotobuf.PutInt(b, i, m.Ttl)
@@ -4840,6 +5115,40 @@ func (m *RefreshResult) unmarshalCF(b []byte, depth int) error {
 				}
 				m.Ttl = cfprotobuf.Int[uint32](v)
 				i = next
+				continue
+			}
+		case 1000: // User
+			if tag&7 == 2 {
+				from := i + 1
+				var to int
+				if i < len(b) && b[i] < 0x80 && int(b[i]) <= len(b)-from {
+					to = from + int(b[i])
+				} else if from, to = cfprotobuf.Length(b, i); from < 0 {
+					return cfprotobuf.Error(from)
+				}
+				s := b[from:to]
+				if !cfprotobuf.ShortASCII(s) && !cfprotobuf.ValidString(s) {
+					return cfprotobuf.ErrInvalidUTF8
+				}
+				m.User = string(s)
+				i = to
+				continue
+			}
+		case 1001: // AuthClass
+			if tag&7 == 2 {
+				from := i + 1
+				var to int
+				if i < len(b) && b[i] < 0x80 && int(b[i]) <= len(b)-from {
+					to = from + int(b[i])
+				} else if from, to = cfprotobuf.Length(b, i); from < 0 {
+					return cfprotobuf.Error(from)
+				}
+				s := b[from:to]
+				if !cfprotobuf.ShortASCII(s) && !cfprotobuf.ValidString(s) {
+					return cfprotobuf.ErrInvalidUTF8
+				}
+				m.AuthClass = string(s)
+				i = to
 				continue
 			}
 		}
@@ -7834,6 +8143,38 @@ func (m *RPCRequest) SizeCF() (n int) {
 	if m.Method != "" {
 		n += 1 + len(m.Method) + cfprotobuf.SizeOfLen(len(m.Method))
 	}
+	if len(m.Headers) > 0 {
+		for k, v := range m.Headers {
+			entry := 1 + len(k) + cfprotobuf.SizeOfLen(len(k)) + 1 + len(v) + cfprotobuf.SizeOfLen(len(v))
+			n += 2 + entry + cfprotobuf.SizeOfLen(entry)
+		}
+	}
+	if m.MsgId != 0 {
+		n += 2 + cfprotobuf.SizeOfInt(m.MsgId)
+	}
+	if len(m.Ack) > 0 {
+		packed := 0
+		for _, e := range m.Ack {
+			packed += cfprotobuf.SizeOfInt(e)
+		}
+		n += 2 + cfprotobuf.SizeOfLen(packed) + packed
+	}
+	if m.Retransmit {
+		n += 2 + 1
+	}
+	if len(m.After) > 0 {
+		packed := 0
+		for _, e := range m.After {
+			packed += cfprotobuf.SizeOfInt(e)
+		}
+		n += 2 + cfprotobuf.SizeOfLen(packed) + packed
+	}
+	if m.WithoutUpdates {
+		n += 2 + 1
+	}
+	if m.Cancel != 0 {
+		n += 2 + cfprotobuf.SizeOfInt(m.Cancel)
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -7867,6 +8208,78 @@ func (m *RPCRequest) MarshalToSizedBufferCF(b []byte) (int, error) {
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(b[i:], m.unknownFields)
+	}
+	if m.Cancel != 0 {
+		i = cfprotobuf.PutInt(b, i, m.Cancel)
+		i--
+		b[i] = 0x3e
+		i--
+		b[i] = 0xf0
+	}
+	if m.WithoutUpdates {
+		i--
+		b[i] = 1
+		i--
+		b[i] = 0x3e
+		i--
+		b[i] = 0xe8
+	}
+	if len(m.After) > 0 {
+		end := i
+		for n := len(m.After) - 1; n >= 0; n-- {
+			i = cfprotobuf.PutInt(b, i, m.After[n])
+		}
+		i = cfprotobuf.PutLen(b, i, end-i)
+		i--
+		b[i] = 0x3e
+		i--
+		b[i] = 0xe2
+	}
+	if m.Retransmit {
+		i--
+		b[i] = 1
+		i--
+		b[i] = 0x3e
+		i--
+		b[i] = 0xd8
+	}
+	if len(m.Ack) > 0 {
+		end := i
+		for n := len(m.Ack) - 1; n >= 0; n-- {
+			i = cfprotobuf.PutInt(b, i, m.Ack[n])
+		}
+		i = cfprotobuf.PutLen(b, i, end-i)
+		i--
+		b[i] = 0x3e
+		i--
+		b[i] = 0xd2
+	}
+	if m.MsgId != 0 {
+		i = cfprotobuf.PutInt(b, i, m.MsgId)
+		i--
+		b[i] = 0x3e
+		i--
+		b[i] = 0xc8
+	}
+	if len(m.Headers) > 0 {
+		for k, v := range m.Headers {
+			end := i
+			i -= len(v)
+			copy(b[i:], v)
+			i = cfprotobuf.PutLen(b, i, len(v))
+			i--
+			b[i] = 0x12
+			i -= len(k)
+			copy(b[i:], k)
+			i = cfprotobuf.PutLen(b, i, len(k))
+			i--
+			b[i] = 0xa
+			i = cfprotobuf.PutLen(b, i, end-i)
+			i--
+			b[i] = 0x3e
+			i--
+			b[i] = 0xc2
+		}
 	}
 	if m.Method != "" {
 		i -= len(m.Method)
@@ -7935,6 +8348,197 @@ func (m *RPCRequest) unmarshalCF(b []byte, depth int) error {
 				i = to
 				continue
 			}
+		case 1000: // Headers
+			if tag&7 == 2 {
+				from := i + 1
+				var to int
+				if i < len(b) && b[i] < 0x80 && int(b[i]) <= len(b)-from {
+					to = from + int(b[i])
+				} else if from, to = cfprotobuf.Length(b, i); from < 0 {
+					return cfprotobuf.Error(from)
+				}
+				if m.Headers == nil {
+					m.Headers = make(map[string]string)
+				}
+				entry := b[from:to]
+				var key string
+				var val string
+				for j := 0; j < len(entry); {
+					entryTag := uint64(entry[j])
+					next = j + 1
+					if entryTag >= 0x80 {
+						if entryTag, next = cfprotobuf.Varint(entry, j); next < 0 {
+							return cfprotobuf.Error(next)
+						}
+					}
+					j = next
+					switch entryTag {
+					case 10:
+						fromKey := j + 1
+						var toKey int
+						if j < len(entry) && entry[j] < 0x80 && int(entry[j]) <= len(entry)-fromKey {
+							toKey = fromKey + int(entry[j])
+						} else if fromKey, toKey = cfprotobuf.Length(entry, j); fromKey < 0 {
+							return cfprotobuf.Error(fromKey)
+						}
+						sKey := entry[fromKey:toKey]
+						if !cfprotobuf.ShortASCII(sKey) && !cfprotobuf.ValidString(sKey) {
+							return cfprotobuf.ErrInvalidUTF8
+						}
+						key = string(sKey)
+						j = toKey
+					case 18:
+						fromVal := j + 1
+						var toVal int
+						if j < len(entry) && entry[j] < 0x80 && int(entry[j]) <= len(entry)-fromVal {
+							toVal = fromVal + int(entry[j])
+						} else if fromVal, toVal = cfprotobuf.Length(entry, j); fromVal < 0 {
+							return cfprotobuf.Error(fromVal)
+						}
+						sVal := entry[fromVal:toVal]
+						if !cfprotobuf.ShortASCII(sVal) && !cfprotobuf.ValidString(sVal) {
+							return cfprotobuf.ErrInvalidUTF8
+						}
+						val = string(sVal)
+						j = toVal
+					default:
+						next = cfprotobuf.Skip(entry, j, entryTag)
+						if next < 0 {
+							return cfprotobuf.Error(next)
+						}
+						j = next
+					}
+				}
+				m.Headers[key] = val
+				i = to
+				continue
+			}
+		case 1001: // MsgId
+			if tag&7 == 0 {
+				var v uint64
+				if i < len(b) && b[i] < 0x80 {
+					v, next = uint64(b[i]), i+1
+				} else if v, next = cfprotobuf.Varint(b, i); next < 0 {
+					return cfprotobuf.Error(next)
+				}
+				m.MsgId = cfprotobuf.Int[uint64](v)
+				i = next
+				continue
+			}
+		case 1002: // Ack
+			if tag&7 == 2 {
+				from := i + 1
+				var to int
+				if i < len(b) && b[i] < 0x80 && int(b[i]) <= len(b)-from {
+					to = from + int(b[i])
+				} else if from, to = cfprotobuf.Length(b, i); from < 0 {
+					return cfprotobuf.Error(from)
+				}
+				entry := b[from:to]
+				var nx int
+				for j := 0; j < len(entry); {
+					var e uint64
+					var v uint64
+					if j < len(entry) && entry[j] < 0x80 {
+						v, nx = uint64(entry[j]), j+1
+					} else if v, nx = cfprotobuf.Varint(entry, j); nx < 0 {
+						return cfprotobuf.Error(nx)
+					}
+					e = cfprotobuf.Int[uint64](v)
+					j = nx
+					m.Ack = append(m.Ack, e)
+				}
+				i = to
+				continue
+			}
+			if tag&7 == 0 {
+				var e uint64
+				var v uint64
+				if i < len(b) && b[i] < 0x80 {
+					v, next = uint64(b[i]), i+1
+				} else if v, next = cfprotobuf.Varint(b, i); next < 0 {
+					return cfprotobuf.Error(next)
+				}
+				e = cfprotobuf.Int[uint64](v)
+				i = next
+				m.Ack = append(m.Ack, e)
+				continue
+			}
+		case 1003: // Retransmit
+			if tag&7 == 0 {
+				var v uint64
+				if i < len(b) && b[i] < 0x80 {
+					v, next = uint64(b[i]), i+1
+				} else if v, next = cfprotobuf.Varint(b, i); next < 0 {
+					return cfprotobuf.Error(next)
+				}
+				m.Retransmit = v != 0
+				i = next
+				continue
+			}
+		case 1004: // After
+			if tag&7 == 2 {
+				from := i + 1
+				var to int
+				if i < len(b) && b[i] < 0x80 && int(b[i]) <= len(b)-from {
+					to = from + int(b[i])
+				} else if from, to = cfprotobuf.Length(b, i); from < 0 {
+					return cfprotobuf.Error(from)
+				}
+				entry := b[from:to]
+				var nx int
+				for j := 0; j < len(entry); {
+					var e uint64
+					var v uint64
+					if j < len(entry) && entry[j] < 0x80 {
+						v, nx = uint64(entry[j]), j+1
+					} else if v, nx = cfprotobuf.Varint(entry, j); nx < 0 {
+						return cfprotobuf.Error(nx)
+					}
+					e = cfprotobuf.Int[uint64](v)
+					j = nx
+					m.After = append(m.After, e)
+				}
+				i = to
+				continue
+			}
+			if tag&7 == 0 {
+				var e uint64
+				var v uint64
+				if i < len(b) && b[i] < 0x80 {
+					v, next = uint64(b[i]), i+1
+				} else if v, next = cfprotobuf.Varint(b, i); next < 0 {
+					return cfprotobuf.Error(next)
+				}
+				e = cfprotobuf.Int[uint64](v)
+				i = next
+				m.After = append(m.After, e)
+				continue
+			}
+		case 1005: // WithoutUpdates
+			if tag&7 == 0 {
+				var v uint64
+				if i < len(b) && b[i] < 0x80 {
+					v, next = uint64(b[i]), i+1
+				} else if v, next = cfprotobuf.Varint(b, i); next < 0 {
+					return cfprotobuf.Error(next)
+				}
+				m.WithoutUpdates = v != 0
+				i = next
+				continue
+			}
+		case 1006: // Cancel
+			if tag&7 == 0 {
+				var v uint64
+				if i < len(b) && b[i] < 0x80 {
+					v, next = uint64(b[i]), i+1
+				} else if v, next = cfprotobuf.Varint(b, i); next < 0 {
+					return cfprotobuf.Error(next)
+				}
+				m.Cancel = cfprotobuf.Int[uint64](v)
+				i = next
+				continue
+			}
 		}
 		next = cfprotobuf.Skip(b, i, tag)
 		if next < 0 {
@@ -7952,6 +8556,9 @@ func (m *RPCResult) SizeCF() (n int) {
 	}
 	if len(m.Data) > 0 {
 		n += 1 + len(m.Data) + cfprotobuf.SizeOfLen(len(m.Data))
+	}
+	if m.Cached {
+		n += 2 + 1
 	}
 	n += len(m.unknownFields)
 	return n
@@ -7987,6 +8594,14 @@ func (m *RPCResult) MarshalToSizedBufferCF(b []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(b[i:], m.unknownFields)
 	}
+	if m.Cached {
+		i--
+		b[i] = 1
+		i--
+		b[i] = 0x3e
+		i--
+		b[i] = 0xc0
+	}
 	if len(m.Data) > 0 {
 		i -= len(m.Data)
 		copy(b[i:], m.Data)
@@ -8013,20 +8628,35 @@ func (m *RPCResult) unmarshalCF(b []byte, depth int) error {
 			}
 		}
 		i = next
-		if tag == 10 { // Data
-			from := i + 1
-			var to int
-			if i < len(b) && b[i] < 0x80 && int(b[i]) <= len(b)-from {
-				to = from + int(b[i])
-			} else if from, to = cfprotobuf.Length(b, i); from < 0 {
-				return cfprotobuf.Error(from)
+		switch tag >> 3 {
+		case 1: // Data
+			if tag&7 == 2 {
+				from := i + 1
+				var to int
+				if i < len(b) && b[i] < 0x80 && int(b[i]) <= len(b)-from {
+					to = from + int(b[i])
+				} else if from, to = cfprotobuf.Length(b, i); from < 0 {
+					return cfprotobuf.Error(from)
+				}
+				m.Data = append(m.Data[:0], b[from:to]...)
+				if m.Data == nil {
+					m.Data = Raw{}
+				}
+				i = to
+				continue
 			}
-			m.Data = append(m.Data[:0], b[from:to]...)
-			if m.Data == nil {
-				m.Data = Raw{}
+		case 1000: // Cached
+			if tag&7 == 0 {
+				var v uint64
+				if i < len(b) && b[i] < 0x80 {
+					v, next = uint64(b[i]), i+1
+				} else if v, next = cfprotobuf.Varint(b, i); next < 0 {
+					return cfprotobuf.Error(next)
+				}
+				m.Cached = v != 0
+				i = next
+				continue
 			}
-			i = to
-			continue
 		}
 		next = cfprotobuf.Skip(b, i, tag)
 		if next < 0 {

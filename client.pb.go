@@ -67,6 +67,8 @@ const (
 //
 // Note that many protocol violations result in a Disconnect instead of an
 // Error reply.
+//
+// Fork fields use numbers 1000-1999.
 type Error struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Error code.
@@ -76,7 +78,13 @@ type Error struct {
 	Message string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
 	// When set the error condition is temporary and the same command may succeed
 	// if retried later (preferably with a backoff).
-	Temporary     bool `protobuf:"varint,3,opt,name=temporary,proto3" json:"temporary,omitempty"`
+	Temporary bool `protobuf:"varint,3,opt,name=temporary,proto3" json:"temporary,omitempty"`
+	// Application error code passed through from the backend; 0 = none.
+	AppCode int32 `protobuf:"varint,1000,opt,name=app_code,json=appCode,proto3" json:"app_code,omitempty"`
+	// Application error type passed through from the backend.
+	AppType string `protobuf:"bytes,1001,opt,name=app_type,json=appType,proto3" json:"app_type,omitempty"`
+	// Allow-listed backend metadata for the client.
+	Metadata      map[string]string `protobuf:"bytes,1002,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -130,6 +138,27 @@ func (x *Error) GetTemporary() bool {
 		return x.Temporary
 	}
 	return false
+}
+
+func (x *Error) GetAppCode() int32 {
+	if x != nil {
+		return x.AppCode
+	}
+	return 0
+}
+
+func (x *Error) GetAppType() string {
+	if x != nil {
+		return x.AppType
+	}
+	return ""
+}
+
+func (x *Error) GetMetadata() map[string]string {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
 }
 
 // EmulationRequest is the body of an HTTP request a client sends to the
@@ -365,6 +394,8 @@ func (x *Command) GetSubRefresh() *SubRefreshRequest {
 // An empty Reply (all fields unset, i.e. {} in JSON) is a server ping. When
 // ConnectResult.pong is set the client must respond to it with an empty
 // Command.
+//
+// Fork fields use numbers 1000-1999.
 type Reply struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Id of the Command this Reply responds to. It is zero for pushes.
@@ -387,6 +418,8 @@ type Reply struct {
 	Rpc           *RPCResult           `protobuf:"bytes,13,opt,name=rpc,proto3" json:"rpc,omitempty"`
 	Refresh       *RefreshResult       `protobuf:"bytes,14,opt,name=refresh,proto3" json:"refresh,omitempty"`
 	SubRefresh    *SubRefreshResult    `protobuf:"bytes,15,opt,name=sub_refresh,json=subRefresh,proto3" json:"sub_refresh,omitempty"`
+	// Server Unix time in milliseconds, set on command replies only.
+	Time          int64 `protobuf:"varint,1000,opt,name=time,proto3" json:"time,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -517,6 +550,13 @@ func (x *Reply) GetSubRefresh() *SubRefreshResult {
 		return x.SubRefresh
 	}
 	return nil
+}
+
+func (x *Reply) GetTime() int64 {
+	if x != nil {
+		return x.Time
+	}
+	return 0
 }
 
 // Push is an asynchronous message from a server to a client. It is sent
@@ -1554,6 +1594,8 @@ func (x *Refresh) GetTtl() uint32 {
 
 // ConnectRequest authenticates a connection. It must be the first command sent
 // by a client.
+//
+// Fork fields use numbers 1000-1999.
 type ConnectRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Connection token (JWT in Centrifugo), optional if the server can
@@ -1601,7 +1643,9 @@ type ConnectRequest struct {
 	// given, which is the one it needs when reconnecting to the same profile. The
 	// cost is one extra transfer per hop during a rolling deploy where nodes
 	// disagree, which is bounded and small.
-	Dict          string `protobuf:"bytes,8,opt,name=dict,proto3" json:"dict,omitempty"`
+	Dict string `protobuf:"bytes,8,opt,name=dict,proto3" json:"dict,omitempty"`
+	// Client-persisted install id.
+	Instance      string `protobuf:"bytes,1000,opt,name=instance,proto3" json:"instance,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1699,7 +1743,16 @@ func (x *ConnectRequest) GetDict() string {
 	return ""
 }
 
+func (x *ConnectRequest) GetInstance() string {
+	if x != nil {
+		return x.Instance
+	}
+	return ""
+}
+
 // ConnectResult is the result of a successful connect.
+//
+// Fork fields use numbers 1000-1999.
 type ConnectResult struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Unique client (connection) id assigned by the server.
@@ -1742,7 +1795,11 @@ type ConnectResult struct {
 	// rule to get wrong: this frame is raw, and every frame after it is
 	// compressed. It carries only an id when the client advertised that same id in
 	// ConnectRequest.dict, since the client already holds the bytes.
-	Dict          *Dictionary `protobuf:"bytes,13,opt,name=dict,proto3" json:"dict,omitempty"`
+	Dict *Dictionary `protobuf:"bytes,13,opt,name=dict,proto3" json:"dict,omitempty"`
+	// User the connection is authenticated as.
+	User string `protobuf:"bytes,1000,opt,name=user,proto3" json:"user,omitempty"`
+	// Authentication class of the connection.
+	AuthClass     string `protobuf:"bytes,1001,opt,name=auth_class,json=authClass,proto3" json:"auth_class,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1868,6 +1925,20 @@ func (x *ConnectResult) GetDict() *Dictionary {
 	return nil
 }
 
+func (x *ConnectResult) GetUser() string {
+	if x != nil {
+		return x.User
+	}
+	return ""
+}
+
+func (x *ConnectResult) GetAuthClass() string {
+	if x != nil {
+		return x.AuthClass
+	}
+	return ""
+}
+
 // RefreshRequest refreshes an expiring connection with a new token.
 type RefreshRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1915,6 +1986,8 @@ func (x *RefreshRequest) GetToken() string {
 }
 
 // RefreshResult is the result of a connection refresh.
+//
+// Fork fields use numbers 1000-1999.
 type RefreshResult struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Not set by the current server.
@@ -1924,7 +1997,11 @@ type RefreshResult struct {
 	// When set the connection still expires, ttl contains time until expiration.
 	Expires bool `protobuf:"varint,3,opt,name=expires,proto3" json:"expires,omitempty"`
 	// Seconds until the connection expires.
-	Ttl           uint32 `protobuf:"varint,4,opt,name=ttl,proto3" json:"ttl,omitempty"`
+	Ttl uint32 `protobuf:"varint,4,opt,name=ttl,proto3" json:"ttl,omitempty"`
+	// User the connection is authenticated as.
+	User string `protobuf:"bytes,1000,opt,name=user,proto3" json:"user,omitempty"`
+	// Authentication class of the connection.
+	AuthClass     string `protobuf:"bytes,1001,opt,name=auth_class,json=authClass,proto3" json:"auth_class,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1985,6 +2062,20 @@ func (x *RefreshResult) GetTtl() uint32 {
 		return x.Ttl
 	}
 	return 0
+}
+
+func (x *RefreshResult) GetUser() string {
+	if x != nil {
+		return x.User
+	}
+	return ""
+}
+
+func (x *RefreshResult) GetAuthClass() string {
+	if x != nil {
+		return x.AuthClass
+	}
+	return ""
 }
 
 // SubscribeRequest subscribes the client to a channel.
@@ -3346,12 +3437,28 @@ func (*PingResult) Descriptor() ([]byte, []int) {
 }
 
 // RPCRequest is a remote procedure call handled by the application.
+//
+// Fork fields use numbers 1000-1999.
 type RPCRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Call payload.
 	Data Raw `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
 	// Optional method name to route the call.
-	Method        string `protobuf:"bytes,2,opt,name=method,proto3" json:"method,omitempty"`
+	Method string `protobuf:"bytes,2,opt,name=method,proto3" json:"method,omitempty"`
+	// Per-call headers, forwarded by allow-list.
+	Headers map[string]string `protobuf:"bytes,1000,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// Client request id (fits 53 bits); 0 = no dedup or ordering.
+	MsgId uint64 `protobuf:"varint,1001,opt,name=msg_id,json=msgId,proto3" json:"msg_id,omitempty"`
+	// msg_ids whose replies were received.
+	Ack []uint64 `protobuf:"varint,1002,rep,packed,name=ack,proto3" json:"ack,omitempty"`
+	// Resend after transport loss.
+	Retransmit bool `protobuf:"varint,1003,opt,name=retransmit,proto3" json:"retransmit,omitempty"`
+	// Run only after these msg_ids finished.
+	After []uint64 `protobuf:"varint,1004,rep,packed,name=after,proto3" json:"after,omitempty"`
+	// Updates caused by this call are not pushed to the caller.
+	WithoutUpdates bool `protobuf:"varint,1005,opt,name=without_updates,json=withoutUpdates,proto3" json:"without_updates,omitempty"`
+	// Cancel this msg_id; method and data are empty.
+	Cancel        uint64 `protobuf:"varint,1006,opt,name=cancel,proto3" json:"cancel,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3400,11 +3507,64 @@ func (x *RPCRequest) GetMethod() string {
 	return ""
 }
 
+func (x *RPCRequest) GetHeaders() map[string]string {
+	if x != nil {
+		return x.Headers
+	}
+	return nil
+}
+
+func (x *RPCRequest) GetMsgId() uint64 {
+	if x != nil {
+		return x.MsgId
+	}
+	return 0
+}
+
+func (x *RPCRequest) GetAck() []uint64 {
+	if x != nil {
+		return x.Ack
+	}
+	return nil
+}
+
+func (x *RPCRequest) GetRetransmit() bool {
+	if x != nil {
+		return x.Retransmit
+	}
+	return false
+}
+
+func (x *RPCRequest) GetAfter() []uint64 {
+	if x != nil {
+		return x.After
+	}
+	return nil
+}
+
+func (x *RPCRequest) GetWithoutUpdates() bool {
+	if x != nil {
+		return x.WithoutUpdates
+	}
+	return false
+}
+
+func (x *RPCRequest) GetCancel() uint64 {
+	if x != nil {
+		return x.Cancel
+	}
+	return 0
+}
+
 // RPCResult is the result of an RPC call.
+//
+// Fork fields use numbers 1000-1999.
 type RPCResult struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Result payload.
-	Data          Raw `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
+	Data Raw `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
+	// Answered from the deduplication record.
+	Cached        bool `protobuf:"varint,1000,opt,name=cached,proto3" json:"cached,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3444,6 +3604,13 @@ func (x *RPCResult) GetData() []byte {
 		return x.Data
 	}
 	return nil
+}
+
+func (x *RPCResult) GetCached() bool {
+	if x != nil {
+		return x.Cached
+	}
+	return false
 }
 
 // SendRequest is an asynchronous message from the client to the server
@@ -3618,11 +3785,17 @@ var File_client_proto protoreflect.FileDescriptor
 
 const file_client_proto_rawDesc = "" +
 	"\n" +
-	"\fclient.proto\x12\x1fcentrifugal.centrifuge.protocol\"S\n" +
+	"\fclient.proto\x12\x1fcentrifugal.centrifuge.protocol\"\x9b\x02\n" +
 	"\x05Error\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\rR\x04code\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12\x1c\n" +
-	"\ttemporary\x18\x03 \x01(\bR\ttemporary\"T\n" +
+	"\ttemporary\x18\x03 \x01(\bR\ttemporary\x12\x1a\n" +
+	"\bapp_code\x18\xe8\a \x01(\x05R\aappCode\x12\x1a\n" +
+	"\bapp_type\x18\xe9\a \x01(\tR\aappType\x12Q\n" +
+	"\bmetadata\x18\xea\a \x03(\v24.centrifugal.centrifuge.protocol.Error.MetadataEntryR\bmetadata\x1a;\n" +
+	"\rMetadataEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"T\n" +
 	"\x10EmulationRequest\x12\x12\n" +
 	"\x04node\x18\x01 \x01(\tR\x04node\x12\x18\n" +
 	"\asession\x18\x02 \x01(\tR\asession\x12\x12\n" +
@@ -3642,7 +3815,7 @@ const file_client_proto_rawDesc = "" +
 	"\x03rpc\x18\r \x01(\v2+.centrifugal.centrifuge.protocol.RPCRequestR\x03rpc\x12I\n" +
 	"\arefresh\x18\x0e \x01(\v2/.centrifugal.centrifuge.protocol.RefreshRequestR\arefresh\x12S\n" +
 	"\vsub_refresh\x18\x0f \x01(\v22.centrifugal.centrifuge.protocol.SubRefreshRequestR\n" +
-	"subRefreshJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04\"\xe1\a\n" +
+	"subRefreshJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04\"\xf6\a\n" +
 	"\x05Reply\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\rR\x02id\x12<\n" +
 	"\x05error\x18\x02 \x01(\v2&.centrifugal.centrifuge.protocol.ErrorR\x05error\x129\n" +
@@ -3659,7 +3832,8 @@ const file_client_proto_rawDesc = "" +
 	"\x03rpc\x18\r \x01(\v2*.centrifugal.centrifuge.protocol.RPCResultR\x03rpc\x12H\n" +
 	"\arefresh\x18\x0e \x01(\v2..centrifugal.centrifuge.protocol.RefreshResultR\arefresh\x12R\n" +
 	"\vsub_refresh\x18\x0f \x01(\v21.centrifugal.centrifuge.protocol.SubRefreshResultR\n" +
-	"subRefreshJ\x04\b\x03\x10\x04\"\xa2\x05\n" +
+	"subRefresh\x12\x13\n" +
+	"\x04time\x18\xe8\a \x01(\x03R\x04timeJ\x04\b\x03\x10\x04\"\xa2\x05\n" +
 	"\x04Push\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x18\n" +
 	"\achannel\x18\x02 \x01(\tR\achannel\x12>\n" +
@@ -3744,7 +3918,7 @@ const file_client_proto_rawDesc = "" +
 	"\treconnect\x18\x03 \x01(\bR\treconnect\"5\n" +
 	"\aRefresh\x12\x18\n" +
 	"\aexpires\x18\x01 \x01(\bR\aexpires\x12\x10\n" +
-	"\x03ttl\x18\x02 \x01(\rR\x03ttl\"\xf9\x03\n" +
+	"\x03ttl\x18\x02 \x01(\rR\x03ttl\"\x96\x04\n" +
 	"\x0eConnectRequest\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x12\x12\n" +
 	"\x04data\x18\x02 \x01(\fR\x04data\x12M\n" +
@@ -3754,13 +3928,14 @@ const file_client_proto_rawDesc = "" +
 	"\aheaders\x18\x06 \x03(\v2<.centrifugal.centrifuge.protocol.ConnectRequest.HeadersEntryR\aheaders\x12\x12\n" +
 	"\x04flag\x18\a \x01(\x03R\x04flag\x12\x18\n" +
 	"\aprofile\x18\t \x01(\tR\aprofile\x12\x12\n" +
-	"\x04dict\x18\b \x01(\tR\x04dict\x1aj\n" +
+	"\x04dict\x18\b \x01(\tR\x04dict\x12\x1b\n" +
+	"\binstance\x18\xe8\a \x01(\tR\binstance\x1aj\n" +
 	"\tSubsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12G\n" +
 	"\x05value\x18\x02 \x01(\v21.centrifugal.centrifuge.protocol.SubscribeRequestR\x05value:\x028\x01\x1a:\n" +
 	"\fHeadersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xf9\x03\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xae\x04\n" +
 	"\rConnectResult\x12\x16\n" +
 	"\x06client\x18\x01 \x01(\tR\x06client\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12\x18\n" +
@@ -3775,17 +3950,23 @@ const file_client_proto_rawDesc = "" +
 	" \x01(\tR\x04node\x12\x12\n" +
 	"\x04time\x18\v \x01(\x03R\x04time\x12\x12\n" +
 	"\x04flag\x18\f \x01(\x03R\x04flag\x12?\n" +
-	"\x04dict\x18\r \x01(\v2+.centrifugal.centrifuge.protocol.DictionaryR\x04dict\x1ai\n" +
+	"\x04dict\x18\r \x01(\v2+.centrifugal.centrifuge.protocol.DictionaryR\x04dict\x12\x13\n" +
+	"\x04user\x18\xe8\a \x01(\tR\x04user\x12\x1e\n" +
+	"\n" +
+	"auth_class\x18\xe9\a \x01(\tR\tauthClass\x1ai\n" +
 	"\tSubsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12F\n" +
 	"\x05value\x18\x02 \x01(\v20.centrifugal.centrifuge.protocol.SubscribeResultR\x05value:\x028\x01\"&\n" +
 	"\x0eRefreshRequest\x12\x14\n" +
-	"\x05token\x18\x01 \x01(\tR\x05token\"m\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\"\xa2\x01\n" +
 	"\rRefreshResult\x12\x16\n" +
 	"\x06client\x18\x01 \x01(\tR\x06client\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12\x18\n" +
 	"\aexpires\x18\x03 \x01(\bR\aexpires\x12\x10\n" +
-	"\x03ttl\x18\x04 \x01(\rR\x03ttl\"\xdc\x03\n" +
+	"\x03ttl\x18\x04 \x01(\rR\x03ttl\x12\x13\n" +
+	"\x04user\x18\xe8\a \x01(\tR\x04user\x12\x1e\n" +
+	"\n" +
+	"auth_class\x18\xe9\a \x01(\tR\tauthClass\"\xdc\x03\n" +
 	"\x10SubscribeRequest\x12\x18\n" +
 	"\achannel\x18\x01 \x01(\tR\achannel\x12\x14\n" +
 	"\x05token\x18\x02 \x01(\tR\x05token\x12\x18\n" +
@@ -3883,13 +4064,26 @@ const file_client_proto_rawDesc = "" +
 	"\x06offset\x18\x03 \x01(\x04R\x06offset\"\r\n" +
 	"\vPingRequest\"\f\n" +
 	"\n" +
-	"PingResult\"8\n" +
+	"PingResult\"\xef\x02\n" +
 	"\n" +
 	"RPCRequest\x12\x12\n" +
 	"\x04data\x18\x01 \x01(\fR\x04data\x12\x16\n" +
-	"\x06method\x18\x02 \x01(\tR\x06method\"\x1f\n" +
+	"\x06method\x18\x02 \x01(\tR\x06method\x12S\n" +
+	"\aheaders\x18\xe8\a \x03(\v28.centrifugal.centrifuge.protocol.RPCRequest.HeadersEntryR\aheaders\x12\x16\n" +
+	"\x06msg_id\x18\xe9\a \x01(\x04R\x05msgId\x12\x11\n" +
+	"\x03ack\x18\xea\a \x03(\x04R\x03ack\x12\x1f\n" +
+	"\n" +
+	"retransmit\x18\xeb\a \x01(\bR\n" +
+	"retransmit\x12\x15\n" +
+	"\x05after\x18\xec\a \x03(\x04R\x05after\x12(\n" +
+	"\x0fwithout_updates\x18\xed\a \x01(\bR\x0ewithoutUpdates\x12\x17\n" +
+	"\x06cancel\x18\xee\a \x01(\x04R\x06cancel\x1a:\n" +
+	"\fHeadersEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"8\n" +
 	"\tRPCResult\x12\x12\n" +
-	"\x04data\x18\x01 \x01(\fR\x04data\"!\n" +
+	"\x04data\x18\x01 \x01(\fR\x04data\x12\x17\n" +
+	"\x06cached\x18\xe8\a \x01(\bR\x06cached\"!\n" +
 	"\vSendRequest\x12\x12\n" +
 	"\x04data\x18\x01 \x01(\fR\x04data\"\xa9\x01\n" +
 	"\n" +
@@ -3913,7 +4107,7 @@ func file_client_proto_rawDescGZIP() []byte {
 	return file_client_proto_rawDescData
 }
 
-var file_client_proto_msgTypes = make([]protoimpl.MessageInfo, 49)
+var file_client_proto_msgTypes = make([]protoimpl.MessageInfo, 51)
 var file_client_proto_goTypes = []any{
 	(*Error)(nil),                // 0: centrifugal.centrifuge.protocol.Error
 	(*EmulationRequest)(nil),     // 1: centrifugal.centrifuge.protocol.EmulationRequest
@@ -3958,76 +4152,80 @@ var file_client_proto_goTypes = []any{
 	(*RPCResult)(nil),            // 40: centrifugal.centrifuge.protocol.RPCResult
 	(*SendRequest)(nil),          // 41: centrifugal.centrifuge.protocol.SendRequest
 	(*FilterNode)(nil),           // 42: centrifugal.centrifuge.protocol.FilterNode
-	nil,                          // 43: centrifugal.centrifuge.protocol.Publication.TagsEntry
-	nil,                          // 44: centrifugal.centrifuge.protocol.Connect.SubsEntry
-	nil,                          // 45: centrifugal.centrifuge.protocol.ConnectRequest.SubsEntry
-	nil,                          // 46: centrifugal.centrifuge.protocol.ConnectRequest.HeadersEntry
-	nil,                          // 47: centrifugal.centrifuge.protocol.ConnectResult.SubsEntry
-	nil,                          // 48: centrifugal.centrifuge.protocol.PresenceResult.PresenceEntry
+	nil,                          // 43: centrifugal.centrifuge.protocol.Error.MetadataEntry
+	nil,                          // 44: centrifugal.centrifuge.protocol.Publication.TagsEntry
+	nil,                          // 45: centrifugal.centrifuge.protocol.Connect.SubsEntry
+	nil,                          // 46: centrifugal.centrifuge.protocol.ConnectRequest.SubsEntry
+	nil,                          // 47: centrifugal.centrifuge.protocol.ConnectRequest.HeadersEntry
+	nil,                          // 48: centrifugal.centrifuge.protocol.ConnectResult.SubsEntry
+	nil,                          // 49: centrifugal.centrifuge.protocol.PresenceResult.PresenceEntry
+	nil,                          // 50: centrifugal.centrifuge.protocol.RPCRequest.HeadersEntry
 }
 var file_client_proto_depIdxs = []int32{
-	16, // 0: centrifugal.centrifuge.protocol.Command.connect:type_name -> centrifugal.centrifuge.protocol.ConnectRequest
-	20, // 1: centrifugal.centrifuge.protocol.Command.subscribe:type_name -> centrifugal.centrifuge.protocol.SubscribeRequest
-	26, // 2: centrifugal.centrifuge.protocol.Command.unsubscribe:type_name -> centrifugal.centrifuge.protocol.UnsubscribeRequest
-	28, // 3: centrifugal.centrifuge.protocol.Command.publish:type_name -> centrifugal.centrifuge.protocol.PublishRequest
-	30, // 4: centrifugal.centrifuge.protocol.Command.presence:type_name -> centrifugal.centrifuge.protocol.PresenceRequest
-	32, // 5: centrifugal.centrifuge.protocol.Command.presence_stats:type_name -> centrifugal.centrifuge.protocol.PresenceStatsRequest
-	35, // 6: centrifugal.centrifuge.protocol.Command.history:type_name -> centrifugal.centrifuge.protocol.HistoryRequest
-	37, // 7: centrifugal.centrifuge.protocol.Command.ping:type_name -> centrifugal.centrifuge.protocol.PingRequest
-	41, // 8: centrifugal.centrifuge.protocol.Command.send:type_name -> centrifugal.centrifuge.protocol.SendRequest
-	39, // 9: centrifugal.centrifuge.protocol.Command.rpc:type_name -> centrifugal.centrifuge.protocol.RPCRequest
-	18, // 10: centrifugal.centrifuge.protocol.Command.refresh:type_name -> centrifugal.centrifuge.protocol.RefreshRequest
-	24, // 11: centrifugal.centrifuge.protocol.Command.sub_refresh:type_name -> centrifugal.centrifuge.protocol.SubRefreshRequest
-	0,  // 12: centrifugal.centrifuge.protocol.Reply.error:type_name -> centrifugal.centrifuge.protocol.Error
-	4,  // 13: centrifugal.centrifuge.protocol.Reply.push:type_name -> centrifugal.centrifuge.protocol.Push
-	17, // 14: centrifugal.centrifuge.protocol.Reply.connect:type_name -> centrifugal.centrifuge.protocol.ConnectResult
-	21, // 15: centrifugal.centrifuge.protocol.Reply.subscribe:type_name -> centrifugal.centrifuge.protocol.SubscribeResult
-	27, // 16: centrifugal.centrifuge.protocol.Reply.unsubscribe:type_name -> centrifugal.centrifuge.protocol.UnsubscribeResult
-	29, // 17: centrifugal.centrifuge.protocol.Reply.publish:type_name -> centrifugal.centrifuge.protocol.PublishResult
-	31, // 18: centrifugal.centrifuge.protocol.Reply.presence:type_name -> centrifugal.centrifuge.protocol.PresenceResult
-	33, // 19: centrifugal.centrifuge.protocol.Reply.presence_stats:type_name -> centrifugal.centrifuge.protocol.PresenceStatsResult
-	36, // 20: centrifugal.centrifuge.protocol.Reply.history:type_name -> centrifugal.centrifuge.protocol.HistoryResult
-	38, // 21: centrifugal.centrifuge.protocol.Reply.ping:type_name -> centrifugal.centrifuge.protocol.PingResult
-	40, // 22: centrifugal.centrifuge.protocol.Reply.rpc:type_name -> centrifugal.centrifuge.protocol.RPCResult
-	19, // 23: centrifugal.centrifuge.protocol.Reply.refresh:type_name -> centrifugal.centrifuge.protocol.RefreshResult
-	25, // 24: centrifugal.centrifuge.protocol.Reply.sub_refresh:type_name -> centrifugal.centrifuge.protocol.SubRefreshResult
-	7,  // 25: centrifugal.centrifuge.protocol.Push.pub:type_name -> centrifugal.centrifuge.protocol.Publication
-	8,  // 26: centrifugal.centrifuge.protocol.Push.join:type_name -> centrifugal.centrifuge.protocol.Join
-	9,  // 27: centrifugal.centrifuge.protocol.Push.leave:type_name -> centrifugal.centrifuge.protocol.Leave
-	10, // 28: centrifugal.centrifuge.protocol.Push.unsubscribe:type_name -> centrifugal.centrifuge.protocol.Unsubscribe
-	12, // 29: centrifugal.centrifuge.protocol.Push.message:type_name -> centrifugal.centrifuge.protocol.Message
-	11, // 30: centrifugal.centrifuge.protocol.Push.subscribe:type_name -> centrifugal.centrifuge.protocol.Subscribe
-	13, // 31: centrifugal.centrifuge.protocol.Push.connect:type_name -> centrifugal.centrifuge.protocol.Connect
-	14, // 32: centrifugal.centrifuge.protocol.Push.disconnect:type_name -> centrifugal.centrifuge.protocol.Disconnect
-	15, // 33: centrifugal.centrifuge.protocol.Push.refresh:type_name -> centrifugal.centrifuge.protocol.Refresh
-	6,  // 34: centrifugal.centrifuge.protocol.Publication.info:type_name -> centrifugal.centrifuge.protocol.ClientInfo
-	43, // 35: centrifugal.centrifuge.protocol.Publication.tags:type_name -> centrifugal.centrifuge.protocol.Publication.TagsEntry
-	6,  // 36: centrifugal.centrifuge.protocol.Join.info:type_name -> centrifugal.centrifuge.protocol.ClientInfo
-	6,  // 37: centrifugal.centrifuge.protocol.Leave.info:type_name -> centrifugal.centrifuge.protocol.ClientInfo
-	44, // 38: centrifugal.centrifuge.protocol.Connect.subs:type_name -> centrifugal.centrifuge.protocol.Connect.SubsEntry
-	45, // 39: centrifugal.centrifuge.protocol.ConnectRequest.subs:type_name -> centrifugal.centrifuge.protocol.ConnectRequest.SubsEntry
-	46, // 40: centrifugal.centrifuge.protocol.ConnectRequest.headers:type_name -> centrifugal.centrifuge.protocol.ConnectRequest.HeadersEntry
-	47, // 41: centrifugal.centrifuge.protocol.ConnectResult.subs:type_name -> centrifugal.centrifuge.protocol.ConnectResult.SubsEntry
-	5,  // 42: centrifugal.centrifuge.protocol.ConnectResult.dict:type_name -> centrifugal.centrifuge.protocol.Dictionary
-	42, // 43: centrifugal.centrifuge.protocol.SubscribeRequest.tf:type_name -> centrifugal.centrifuge.protocol.FilterNode
-	7,  // 44: centrifugal.centrifuge.protocol.SubscribeResult.publications:type_name -> centrifugal.centrifuge.protocol.Publication
-	7,  // 45: centrifugal.centrifuge.protocol.SubscribeResult.state:type_name -> centrifugal.centrifuge.protocol.Publication
-	22, // 46: centrifugal.centrifuge.protocol.TrackBatch.items:type_name -> centrifugal.centrifuge.protocol.KeyedItem
-	23, // 47: centrifugal.centrifuge.protocol.SubRefreshRequest.track:type_name -> centrifugal.centrifuge.protocol.TrackBatch
-	7,  // 48: centrifugal.centrifuge.protocol.SubRefreshResult.items:type_name -> centrifugal.centrifuge.protocol.Publication
-	48, // 49: centrifugal.centrifuge.protocol.PresenceResult.presence:type_name -> centrifugal.centrifuge.protocol.PresenceResult.PresenceEntry
-	34, // 50: centrifugal.centrifuge.protocol.HistoryRequest.since:type_name -> centrifugal.centrifuge.protocol.StreamPosition
-	7,  // 51: centrifugal.centrifuge.protocol.HistoryResult.publications:type_name -> centrifugal.centrifuge.protocol.Publication
-	42, // 52: centrifugal.centrifuge.protocol.FilterNode.nodes:type_name -> centrifugal.centrifuge.protocol.FilterNode
-	21, // 53: centrifugal.centrifuge.protocol.Connect.SubsEntry.value:type_name -> centrifugal.centrifuge.protocol.SubscribeResult
-	20, // 54: centrifugal.centrifuge.protocol.ConnectRequest.SubsEntry.value:type_name -> centrifugal.centrifuge.protocol.SubscribeRequest
-	21, // 55: centrifugal.centrifuge.protocol.ConnectResult.SubsEntry.value:type_name -> centrifugal.centrifuge.protocol.SubscribeResult
-	6,  // 56: centrifugal.centrifuge.protocol.PresenceResult.PresenceEntry.value:type_name -> centrifugal.centrifuge.protocol.ClientInfo
-	57, // [57:57] is the sub-list for method output_type
-	57, // [57:57] is the sub-list for method input_type
-	57, // [57:57] is the sub-list for extension type_name
-	57, // [57:57] is the sub-list for extension extendee
-	0,  // [0:57] is the sub-list for field type_name
+	43, // 0: centrifugal.centrifuge.protocol.Error.metadata:type_name -> centrifugal.centrifuge.protocol.Error.MetadataEntry
+	16, // 1: centrifugal.centrifuge.protocol.Command.connect:type_name -> centrifugal.centrifuge.protocol.ConnectRequest
+	20, // 2: centrifugal.centrifuge.protocol.Command.subscribe:type_name -> centrifugal.centrifuge.protocol.SubscribeRequest
+	26, // 3: centrifugal.centrifuge.protocol.Command.unsubscribe:type_name -> centrifugal.centrifuge.protocol.UnsubscribeRequest
+	28, // 4: centrifugal.centrifuge.protocol.Command.publish:type_name -> centrifugal.centrifuge.protocol.PublishRequest
+	30, // 5: centrifugal.centrifuge.protocol.Command.presence:type_name -> centrifugal.centrifuge.protocol.PresenceRequest
+	32, // 6: centrifugal.centrifuge.protocol.Command.presence_stats:type_name -> centrifugal.centrifuge.protocol.PresenceStatsRequest
+	35, // 7: centrifugal.centrifuge.protocol.Command.history:type_name -> centrifugal.centrifuge.protocol.HistoryRequest
+	37, // 8: centrifugal.centrifuge.protocol.Command.ping:type_name -> centrifugal.centrifuge.protocol.PingRequest
+	41, // 9: centrifugal.centrifuge.protocol.Command.send:type_name -> centrifugal.centrifuge.protocol.SendRequest
+	39, // 10: centrifugal.centrifuge.protocol.Command.rpc:type_name -> centrifugal.centrifuge.protocol.RPCRequest
+	18, // 11: centrifugal.centrifuge.protocol.Command.refresh:type_name -> centrifugal.centrifuge.protocol.RefreshRequest
+	24, // 12: centrifugal.centrifuge.protocol.Command.sub_refresh:type_name -> centrifugal.centrifuge.protocol.SubRefreshRequest
+	0,  // 13: centrifugal.centrifuge.protocol.Reply.error:type_name -> centrifugal.centrifuge.protocol.Error
+	4,  // 14: centrifugal.centrifuge.protocol.Reply.push:type_name -> centrifugal.centrifuge.protocol.Push
+	17, // 15: centrifugal.centrifuge.protocol.Reply.connect:type_name -> centrifugal.centrifuge.protocol.ConnectResult
+	21, // 16: centrifugal.centrifuge.protocol.Reply.subscribe:type_name -> centrifugal.centrifuge.protocol.SubscribeResult
+	27, // 17: centrifugal.centrifuge.protocol.Reply.unsubscribe:type_name -> centrifugal.centrifuge.protocol.UnsubscribeResult
+	29, // 18: centrifugal.centrifuge.protocol.Reply.publish:type_name -> centrifugal.centrifuge.protocol.PublishResult
+	31, // 19: centrifugal.centrifuge.protocol.Reply.presence:type_name -> centrifugal.centrifuge.protocol.PresenceResult
+	33, // 20: centrifugal.centrifuge.protocol.Reply.presence_stats:type_name -> centrifugal.centrifuge.protocol.PresenceStatsResult
+	36, // 21: centrifugal.centrifuge.protocol.Reply.history:type_name -> centrifugal.centrifuge.protocol.HistoryResult
+	38, // 22: centrifugal.centrifuge.protocol.Reply.ping:type_name -> centrifugal.centrifuge.protocol.PingResult
+	40, // 23: centrifugal.centrifuge.protocol.Reply.rpc:type_name -> centrifugal.centrifuge.protocol.RPCResult
+	19, // 24: centrifugal.centrifuge.protocol.Reply.refresh:type_name -> centrifugal.centrifuge.protocol.RefreshResult
+	25, // 25: centrifugal.centrifuge.protocol.Reply.sub_refresh:type_name -> centrifugal.centrifuge.protocol.SubRefreshResult
+	7,  // 26: centrifugal.centrifuge.protocol.Push.pub:type_name -> centrifugal.centrifuge.protocol.Publication
+	8,  // 27: centrifugal.centrifuge.protocol.Push.join:type_name -> centrifugal.centrifuge.protocol.Join
+	9,  // 28: centrifugal.centrifuge.protocol.Push.leave:type_name -> centrifugal.centrifuge.protocol.Leave
+	10, // 29: centrifugal.centrifuge.protocol.Push.unsubscribe:type_name -> centrifugal.centrifuge.protocol.Unsubscribe
+	12, // 30: centrifugal.centrifuge.protocol.Push.message:type_name -> centrifugal.centrifuge.protocol.Message
+	11, // 31: centrifugal.centrifuge.protocol.Push.subscribe:type_name -> centrifugal.centrifuge.protocol.Subscribe
+	13, // 32: centrifugal.centrifuge.protocol.Push.connect:type_name -> centrifugal.centrifuge.protocol.Connect
+	14, // 33: centrifugal.centrifuge.protocol.Push.disconnect:type_name -> centrifugal.centrifuge.protocol.Disconnect
+	15, // 34: centrifugal.centrifuge.protocol.Push.refresh:type_name -> centrifugal.centrifuge.protocol.Refresh
+	6,  // 35: centrifugal.centrifuge.protocol.Publication.info:type_name -> centrifugal.centrifuge.protocol.ClientInfo
+	44, // 36: centrifugal.centrifuge.protocol.Publication.tags:type_name -> centrifugal.centrifuge.protocol.Publication.TagsEntry
+	6,  // 37: centrifugal.centrifuge.protocol.Join.info:type_name -> centrifugal.centrifuge.protocol.ClientInfo
+	6,  // 38: centrifugal.centrifuge.protocol.Leave.info:type_name -> centrifugal.centrifuge.protocol.ClientInfo
+	45, // 39: centrifugal.centrifuge.protocol.Connect.subs:type_name -> centrifugal.centrifuge.protocol.Connect.SubsEntry
+	46, // 40: centrifugal.centrifuge.protocol.ConnectRequest.subs:type_name -> centrifugal.centrifuge.protocol.ConnectRequest.SubsEntry
+	47, // 41: centrifugal.centrifuge.protocol.ConnectRequest.headers:type_name -> centrifugal.centrifuge.protocol.ConnectRequest.HeadersEntry
+	48, // 42: centrifugal.centrifuge.protocol.ConnectResult.subs:type_name -> centrifugal.centrifuge.protocol.ConnectResult.SubsEntry
+	5,  // 43: centrifugal.centrifuge.protocol.ConnectResult.dict:type_name -> centrifugal.centrifuge.protocol.Dictionary
+	42, // 44: centrifugal.centrifuge.protocol.SubscribeRequest.tf:type_name -> centrifugal.centrifuge.protocol.FilterNode
+	7,  // 45: centrifugal.centrifuge.protocol.SubscribeResult.publications:type_name -> centrifugal.centrifuge.protocol.Publication
+	7,  // 46: centrifugal.centrifuge.protocol.SubscribeResult.state:type_name -> centrifugal.centrifuge.protocol.Publication
+	22, // 47: centrifugal.centrifuge.protocol.TrackBatch.items:type_name -> centrifugal.centrifuge.protocol.KeyedItem
+	23, // 48: centrifugal.centrifuge.protocol.SubRefreshRequest.track:type_name -> centrifugal.centrifuge.protocol.TrackBatch
+	7,  // 49: centrifugal.centrifuge.protocol.SubRefreshResult.items:type_name -> centrifugal.centrifuge.protocol.Publication
+	49, // 50: centrifugal.centrifuge.protocol.PresenceResult.presence:type_name -> centrifugal.centrifuge.protocol.PresenceResult.PresenceEntry
+	34, // 51: centrifugal.centrifuge.protocol.HistoryRequest.since:type_name -> centrifugal.centrifuge.protocol.StreamPosition
+	7,  // 52: centrifugal.centrifuge.protocol.HistoryResult.publications:type_name -> centrifugal.centrifuge.protocol.Publication
+	50, // 53: centrifugal.centrifuge.protocol.RPCRequest.headers:type_name -> centrifugal.centrifuge.protocol.RPCRequest.HeadersEntry
+	42, // 54: centrifugal.centrifuge.protocol.FilterNode.nodes:type_name -> centrifugal.centrifuge.protocol.FilterNode
+	21, // 55: centrifugal.centrifuge.protocol.Connect.SubsEntry.value:type_name -> centrifugal.centrifuge.protocol.SubscribeResult
+	20, // 56: centrifugal.centrifuge.protocol.ConnectRequest.SubsEntry.value:type_name -> centrifugal.centrifuge.protocol.SubscribeRequest
+	21, // 57: centrifugal.centrifuge.protocol.ConnectResult.SubsEntry.value:type_name -> centrifugal.centrifuge.protocol.SubscribeResult
+	6,  // 58: centrifugal.centrifuge.protocol.PresenceResult.PresenceEntry.value:type_name -> centrifugal.centrifuge.protocol.ClientInfo
+	59, // [59:59] is the sub-list for method output_type
+	59, // [59:59] is the sub-list for method input_type
+	59, // [59:59] is the sub-list for extension type_name
+	59, // [59:59] is the sub-list for extension extendee
+	0,  // [0:59] is the sub-list for field type_name
 }
 
 func init() { file_client_proto_init() }
@@ -4041,7 +4239,7 @@ func file_client_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_client_proto_rawDesc), len(file_client_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   49,
+			NumMessages:   51,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
