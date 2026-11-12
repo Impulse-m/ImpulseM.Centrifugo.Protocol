@@ -1,0 +1,43 @@
+name: regenerate (temporary)
+on:
+  push:
+    branches:
+      - feature/server-tags
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+
+      - name: Install protoc 34.0
+        run: |
+          curl -sSL -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v34.0/protoc-34.0-linux-x86_64.zip
+          unzip -q protoc.zip -d "$HOME/protoc"
+          rm protoc.zip
+          echo "$HOME/protoc/bin" >> "$GITHUB_PATH"
+
+      - name: Install generators
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+          go install github.com/fatih/gomodifytags@v1.13.0
+          go install github.com/FZambia/gomodifytype@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Generate
+        run: ./generate.sh
+
+      - name: Changes
+        run: git status --short && git diff --stat
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: generated
+          path: |
+            client.pb.go
+            client.pb_cfjson.go
+            client.pb_cfprotobuf.go
+            definitions/client.proto

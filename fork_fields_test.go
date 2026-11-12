@@ -38,6 +38,9 @@ var forkProtoGolden = []struct {
 	{"rpc packed ack max", &RPCRequest{Ack: []uint64{1<<64 - 1}}, "d23e0a" + "ffffffffffffffffff" + "01"},
 	// cancel is 1006<<3 = 8048, f0 3e.
 	{"rpc cancel", &RPCRequest{Cancel: 5}, "f03e05"},
+	// server_tags is 1000<<3|2 = 8002, c2 3e, one map entry of six bytes:
+	// key (0a) "k" and value (12) "v".
+	{"publication server tags", &Publication{ServerTags: map[string]string{"k": "v"}}, "c23e06" + "0a016b120176"},
 }
 
 // Inputs with the same messages in the unpacked form of repeated uint64,
@@ -127,6 +130,7 @@ var forkJSONGolden = []struct {
 	{"connect request", &ConnectRequest{Instance: "install-1"}, `{"instance":"install-1"}`},
 	{"connect result", &ConnectResult{User: "user-42", AuthClass: "anonymous"}, `{"user":"user-42","auth_class":"anonymous"}`},
 	{"refresh result", &RefreshResult{User: "user-42", AuthClass: "anonymous"}, `{"user":"user-42","auth_class":"anonymous"}`},
+	{"publication server tags", &Publication{ServerTags: map[string]string{"k": "v"}}, `{"server_tags":{"k":"v"}}`},
 }
 
 func TestForkFieldsJSONGolden(t *testing.T) {
