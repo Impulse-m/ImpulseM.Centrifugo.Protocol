@@ -28,7 +28,7 @@ jobs:
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Generate
-        run: ./generate.sh
+        run: bash generate.sh
 
       - name: Changes
         run: git status --short && git diff --stat
