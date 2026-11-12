@@ -1908,6 +1908,18 @@ func (m *Publication) AppendJSON(b []byte) []byte {
 		b = append(b, ",\"version\":"...)
 		b = cfjson.AppendUint(b, m.Version)
 	}
+	if len(m.ServerTags) != 0 {
+		b = append(b, ",\"server_tags\":"...)
+		s4 := len(b)
+		for k5, e6 := range m.ServerTags {
+			b = append(b, ',')
+			b = cfjson.AppendString(b, k5)
+			b = append(b, ':')
+			b = cfjson.AppendString(b, e6)
+		}
+		b[s4] = '{'
+		b = append(b, '}')
+	}
 	if len(b) == s {
 		return append(b, '{', '}')
 	}
@@ -1995,6 +2007,11 @@ func (m *Publication) DecodeJSON(b []byte, i int, f cfjson.Flags) int {
 				id = 12
 				i = cfjson.SkipSpace(b, i+10)
 			}
+		case 13:
+			if len(b)-i >= 14 && string(b[i:i+14]) == "\"server_tags\":" {
+				id = 13
+				i = cfjson.SkipSpace(b, i+14)
+			}
 		}
 		if id < 0 {
 			var key []byte
@@ -2029,6 +2046,8 @@ func (m *Publication) DecodeJSON(b []byte, i int, f cfjson.Flags) int {
 				id = 11
 			case "version":
 				id = 12
+			case "server_tags":
+				id = 13
 			}
 		}
 		switch id {
@@ -2175,6 +2194,57 @@ func (m *Publication) DecodeJSON(b []byte, i int, f cfjson.Flags) int {
 			seen0 |= 0x1000
 			i = cfjson.Uint(b, i, &m.Version)
 			next = 13
+		case 13:
+			if seen0&0x2000 != 0 {
+				return ^i
+			}
+			seen0 |= 0x2000
+			if cfjson.IsNull(b, i) {
+				m.ServerTags = nil
+				i += 4
+			} else {
+				if i >= len(b) || b[i] != '{' {
+					return ^i
+				}
+				m.ServerTags = make(map[string]string)
+				i = cfjson.SkipSpace(b, i+1)
+				if i < len(b) && b[i] == '}' {
+					i++
+				} else {
+					n6 := 0
+					for {
+						var k4 string
+						i = cfjson.MapKey(b, i, f, &k4)
+						if i < 0 {
+							return i
+						}
+						var e5 string
+						i = cfjson.String(b, i, f, &e5)
+						if i < 0 {
+							return i
+						}
+						m.ServerTags[k4] = e5
+						n6++
+						if len(m.ServerTags) != n6 {
+							return ^i
+						}
+						i = cfjson.SkipSpace(b, i)
+						if i >= len(b) {
+							return ^i
+						}
+						if b[i] == ',' {
+							i = cfjson.SkipSpace(b, i+1)
+							continue
+						}
+						if b[i] != '}' {
+							return ^i
+						}
+						i++
+						break
+					}
+				}
+			}
+			next = 14
 		default:
 			i = cfjson.Skip(b, i, f)
 		}

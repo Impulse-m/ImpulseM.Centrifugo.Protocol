@@ -2243,6 +2243,12 @@ func (m *Publication) SizeCF() (n int) {
 	if m.Version != 0 {
 		n += 2 + cfprotobuf.SizeOfInt(m.Version)
 	}
+	if len(m.ServerTags) > 0 {
+		for k, v := range m.ServerTags {
+			entry := 1 + len(k) + cfprotobuf.SizeOfLen(len(k)) + 1 + len(v) + cfprotobuf.SizeOfLen(len(v))
+			n += 2 + entry + cfprotobuf.SizeOfLen(entry)
+		}
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -2276,6 +2282,26 @@ func (m *Publication) MarshalToSizedBufferCF(b []byte) (int, error) {
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(b[i:], m.unknownFields)
+	}
+	if len(m.ServerTags) > 0 {
+		for k, v := range m.ServerTags {
+			end := i
+			i -= len(v)
+			copy(b[i:], v)
+			i = cfprotobuf.PutLen(b, i, len(v))
+			i--
+			b[i] = 0x12
+			i -= len(k)
+			copy(b[i:], k)
+			i = cfprotobuf.PutLen(b, i, len(k))
+			i--
+			b[i] = 0xa
+			i = cfprotobuf.PutLen(b, i, end-i)
+			i--
+			b[i] = 0x3e
+			i--
+			b[i] = 0xc2
+		}
 	}
 	if m.Version != 0 {
 		i = cfprotobuf.PutInt(b, i, m.Version)
@@ -2632,6 +2658,71 @@ func (m *Publication) unmarshalCF(b []byte, depth int) error {
 				}
 				m.Version = cfprotobuf.Int[uint64](v)
 				i = next
+				continue
+			}
+		case 1000: // ServerTags
+			if tag&7 == 2 {
+				from := i + 1
+				var to int
+				if i < len(b) && b[i] < 0x80 && int(b[i]) <= len(b)-from {
+					to = from + int(b[i])
+				} else if from, to = cfprotobuf.Length(b, i); from < 0 {
+					return cfprotobuf.Error(from)
+				}
+				if m.ServerTags == nil {
+					m.ServerTags = make(map[string]string)
+				}
+				entry := b[from:to]
+				var key string
+				var val string
+				for j := 0; j < len(entry); {
+					entryTag := uint64(entry[j])
+					next = j + 1
+					if entryTag >= 0x80 {
+						if entryTag, next = cfprotobuf.Varint(entry, j); next < 0 {
+							return cfprotobuf.Error(next)
+						}
+					}
+					j = next
+					switch entryTag {
+					case 10:
+						fromKey := j + 1
+						var toKey int
+						if j < len(entry) && entry[j] < 0x80 && int(entry[j]) <= len(entry)-fromKey {
+							toKey = fromKey + int(entry[j])
+						} else if fromKey, toKey = cfprotobuf.Length(entry, j); fromKey < 0 {
+							return cfprotobuf.Error(fromKey)
+						}
+						sKey := entry[fromKey:toKey]
+						if !cfprotobuf.ShortASCII(sKey) && !cfprotobuf.ValidString(sKey) {
+							return cfprotobuf.ErrInvalidUTF8
+						}
+						key = string(sKey)
+						j = toKey
+					case 18:
+						fromVal := j + 1
+						var toVal int
+						if j < len(entry) && entry[j] < 0x80 && int(entry[j]) <= len(entry)-fromVal {
+							toVal = fromVal + int(entry[j])
+						} else if fromVal, toVal = cfprotobuf.Length(entry, j); fromVal < 0 {
+							return cfprotobuf.Error(fromVal)
+						}
+						sVal := entry[fromVal:toVal]
+						if !cfprotobuf.ShortASCII(sVal) && !cfprotobuf.ValidString(sVal) {
+							return cfprotobuf.ErrInvalidUTF8
+						}
+						val = string(sVal)
+						j = toVal
+					default:
+						next = cfprotobuf.Skip(entry, j, entryTag)
+						if next < 0 {
+							return cfprotobuf.Error(next)
+						}
+						j = next
+					}
+				}
+				m.ServerTags[key] = val
+				i = to
 				continue
 			}
 		}

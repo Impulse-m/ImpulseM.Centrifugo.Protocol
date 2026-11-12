@@ -304,6 +304,11 @@ message Publication {
   // Version of the item, used by shared poll subscriptions to only deliver
   // data newer than the client already has.
   uint64 version = 16;
+
+  // Server-only tags: kept in broker history and between server nodes, and
+  // read by server-side subscription filters together with tags. Never sent
+  // to clients.
+  map<string, string> server_tags = 1000;
 }
 
 // Join is sent when a client subscribes to a channel.
